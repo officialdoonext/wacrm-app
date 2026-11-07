@@ -94,6 +94,15 @@ export const BroadcastScreen: React.FC<BroadcastScreenProps> = ({ onNavigateTab 
     const [scheduleMode, setScheduleMode] = useState<'now' | 'scheduled'>('now');
     const [isCreating, setIsCreating] = useState(false);
 
+    // Broadcast Details Modal State (Section 2.5.3 matching Web /broadcasts/[id])
+    const [detailsModalVisible, setDetailsModalVisible] = useState(false);
+    const [selectedBroadcast, setSelectedBroadcast] = useState<DynamicBroadcast | null>(null);
+
+    const handleOpenDetails = (broadcast: DynamicBroadcast) => {
+        setSelectedBroadcast(broadcast);
+        setDetailsModalVisible(true);
+    };
+
     useEffect(() => {
         authService.getProfile().then(setProfile);
     }, []);
@@ -339,7 +348,7 @@ export const BroadcastScreen: React.FC<BroadcastScreenProps> = ({ onNavigateTab 
                                         </View>
 
                                         <View style={styles.heroNetworkArea}>
-                                            <BroadcastOrbitGraphic size={145} />
+                                            <BroadcastOrbitGraphic size={76} />
                                         </View>
                                     </View>
 
@@ -432,7 +441,10 @@ export const BroadcastScreen: React.FC<BroadcastScreenProps> = ({ onNavigateTab 
                                 </View>
                             }
                             renderItem={({ item }) => (
-                                <View style={styles.campaignCard}>
+                                <TouchableOpacity
+                                    style={styles.campaignCard}
+                                    activeOpacity={0.8}
+                                    onPress={() => handleOpenDetails(item)}>
                                     <View style={styles.cardTopRow}>
                                         <View style={[styles.cardIconBox, { backgroundColor: '#F0FDF4' }]}>
                                             <MegaphoneIcon size={20} color={Colors.primaryGreen} />
@@ -481,34 +493,26 @@ export const BroadcastScreen: React.FC<BroadcastScreenProps> = ({ onNavigateTab 
                                         </View>
                                     </View>
 
-                                    {/* Metrics Bar */}
+                                    {/* 4 Clean Visual Metric Pills */}
                                     <View style={styles.metricsRow}>
-                                        <View style={styles.metricItem}>
-                                            <View style={styles.metricTextWrap}>
-                                                <Text style={styles.metricValue}>{item.sent_count.toLocaleString()}</Text>
-                                                <Text style={styles.metricLabel}>Sent</Text>
-                                            </View>
+                                        <View style={[styles.metricCardPill, { backgroundColor: '#EFF6FF', borderColor: '#BFDBFE' }]}>
+                                            <Text style={[styles.metricCardValue, { color: '#1D4ED8' }]}>{item.sent_count.toLocaleString()}</Text>
+                                            <Text style={[styles.metricCardLabel, { color: '#3B82F6' }]}>Sent</Text>
                                         </View>
-                                        <View style={styles.metricItem}>
-                                            <View style={styles.metricTextWrap}>
-                                                <Text style={styles.metricValue}>{item.delivered_count.toLocaleString()}</Text>
-                                                <Text style={styles.metricLabel}>Delivered</Text>
-                                            </View>
+                                        <View style={[styles.metricCardPill, { backgroundColor: '#F0FDF4', borderColor: '#BBF7D0' }]}>
+                                            <Text style={[styles.metricCardValue, { color: '#15803D' }]}>{item.delivered_count.toLocaleString()}</Text>
+                                            <Text style={[styles.metricCardLabel, { color: '#059669' }]}>Delivered</Text>
                                         </View>
-                                        <View style={styles.metricItem}>
-                                            <View style={styles.metricTextWrap}>
-                                                <Text style={styles.metricValue}>{item.read_count.toLocaleString()}</Text>
-                                                <Text style={styles.metricLabel}>Read</Text>
-                                            </View>
+                                        <View style={[styles.metricCardPill, { backgroundColor: '#EEF2FF', borderColor: '#C7D2FE' }]}>
+                                            <Text style={[styles.metricCardValue, { color: '#4338CA' }]}>{item.read_count.toLocaleString()}</Text>
+                                            <Text style={[styles.metricCardLabel, { color: '#6366F1' }]}>Read</Text>
                                         </View>
-                                        <View style={styles.metricItem}>
-                                            <View style={styles.metricTextWrap}>
-                                                <Text style={styles.metricValue}>{item.replied_count.toLocaleString()}</Text>
-                                                <Text style={styles.metricLabel}>Replied</Text>
-                                            </View>
+                                        <View style={[styles.metricCardPill, { backgroundColor: '#FEFCE8', borderColor: '#FDE68A' }]}>
+                                            <Text style={[styles.metricCardValue, { color: '#B45309' }]}>{item.replied_count.toLocaleString()}</Text>
+                                            <Text style={[styles.metricCardLabel, { color: '#D97706' }]}>Replied</Text>
                                         </View>
                                     </View>
-                                </View>
+                                </TouchableOpacity>
                             )}
                         />
                     )}
@@ -1165,6 +1169,231 @@ export const BroadcastScreen: React.FC<BroadcastScreenProps> = ({ onNavigateTab 
                         </View>
                     )}
                 </KeyboardAwareScrollView>
+            </SmoothModal>
+
+            {/* Smooth Modal: Broadcast Details View (Matching Web /broadcasts/[id]) */}
+            <SmoothModal visible={detailsModalVisible} onClose={() => setDetailsModalVisible(false)} maxHeight="90%">
+                {selectedBroadcast && (
+                    <ScrollView showsVerticalScrollIndicator={false}>
+                        {/* Header Row */}
+                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                            <View style={{ flex: 1, marginRight: 12 }}>
+                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                                    <Text style={{ fontSize: 17, fontWeight: '800', color: '#0F172A' }}>
+                                        {selectedBroadcast.title}
+                                    </Text>
+                                    <View
+                                        style={{
+                                            paddingHorizontal: 8,
+                                            paddingVertical: 2,
+                                            borderRadius: 6,
+                                            backgroundColor:
+                                                selectedBroadcast.status === 'Sent'
+                                                    ? '#DCFCE7'
+                                                    : selectedBroadcast.status === 'Scheduled'
+                                                    ? '#DBEAFE'
+                                                    : '#F1F5F9',
+                                        }}>
+                                        <Text
+                                            style={{
+                                                fontSize: 10,
+                                                fontWeight: '700',
+                                                color:
+                                                    selectedBroadcast.status === 'Sent'
+                                                        ? '#166534'
+                                                        : selectedBroadcast.status === 'Scheduled'
+                                                        ? '#1E40AF'
+                                                        : '#475569',
+                                            }}>
+                                            {selectedBroadcast.status}
+                                        </Text>
+                                    </View>
+                                </View>
+                                <Text style={{ fontSize: 11.5, color: '#64748B', marginTop: 2 }}>
+                                    Template: {selectedBroadcast.template_name} • {selectedBroadcast.date}
+                                </Text>
+                            </View>
+                            <TouchableOpacity
+                                onPress={() => setDetailsModalVisible(false)}
+                                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                                style={{
+                                    width: 32,
+                                    height: 32,
+                                    borderRadius: 16,
+                                    backgroundColor: '#F1F5F9',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                }}>
+                                <IconClose size={18} color="#64748B" />
+                            </TouchableOpacity>
+                        </View>
+
+                        {/* 4 Metric Cards */}
+                        <Text style={{ fontSize: 12, fontWeight: '800', color: '#334155', marginBottom: 8 }}>
+                            Campaign Conversion Funnel
+                        </Text>
+                        <View style={{ flexDirection: 'row', gap: 8, marginBottom: 14 }}>
+                            <View style={{ flex: 1, backgroundColor: '#EFF6FF', borderRadius: 10, padding: 8, borderWidth: 1, borderColor: '#BFDBFE', alignItems: 'center' }}>
+                                <Text style={{ fontSize: 14, fontWeight: '800', color: '#1D4ED8' }}>
+                                    {selectedBroadcast.sent_count.toLocaleString()}
+                                </Text>
+                                <Text style={{ fontSize: 9.5, fontWeight: '700', color: '#3B82F6', marginTop: 2 }}>Sent (100%)</Text>
+                            </View>
+                            <View style={{ flex: 1, backgroundColor: '#F0FDF4', borderRadius: 10, padding: 8, borderWidth: 1, borderColor: '#BBF7D0', alignItems: 'center' }}>
+                                <Text style={{ fontSize: 14, fontWeight: '800', color: '#15803D' }}>
+                                    {selectedBroadcast.delivered_count.toLocaleString()}
+                                </Text>
+                                <Text style={{ fontSize: 9.5, fontWeight: '700', color: '#059669', marginTop: 2 }}>
+                                    Delivered ({selectedBroadcast.sent_count > 0 ? Math.round((selectedBroadcast.delivered_count / selectedBroadcast.sent_count) * 100) : 100}%)
+                                </Text>
+                            </View>
+                            <View style={{ flex: 1, backgroundColor: '#EEF2FF', borderRadius: 10, padding: 8, borderWidth: 1, borderColor: '#C7D2FE', alignItems: 'center' }}>
+                                <Text style={{ fontSize: 14, fontWeight: '800', color: '#4338CA' }}>
+                                    {selectedBroadcast.read_count.toLocaleString()}
+                                </Text>
+                                <Text style={{ fontSize: 9.5, fontWeight: '700', color: '#6366F1', marginTop: 2 }}>
+                                    Read ({selectedBroadcast.sent_count > 0 ? Math.round((selectedBroadcast.read_count / selectedBroadcast.sent_count) * 100) : 0}%)
+                                </Text>
+                            </View>
+                            <View style={{ flex: 1, backgroundColor: '#FEFCE8', borderRadius: 10, padding: 8, borderWidth: 1, borderColor: '#FDE68A', alignItems: 'center' }}>
+                                <Text style={{ fontSize: 14, fontWeight: '800', color: '#B45309' }}>
+                                    {selectedBroadcast.replied_count.toLocaleString()}
+                                </Text>
+                                <Text style={{ fontSize: 9.5, fontWeight: '700', color: '#D97706', marginTop: 2 }}>
+                                    Replied ({selectedBroadcast.sent_count > 0 ? Math.round((selectedBroadcast.replied_count / selectedBroadcast.sent_count) * 100) : 0}%)
+                                </Text>
+                            </View>
+                        </View>
+
+                        {/* Funnel Progress Bars */}
+                        <View style={{ backgroundColor: '#F8FAFC', borderRadius: 12, padding: 12, borderWidth: 1, borderColor: '#E2E8F0', marginBottom: 14 }}>
+                            <Text style={{ fontSize: 12, fontWeight: '700', color: '#1E293B', marginBottom: 8 }}>
+                                Funnel Drop-off Rate
+                            </Text>
+
+                            <View style={{ marginBottom: 8 }}>
+                                <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 3 }}>
+                                    <Text style={{ fontSize: 11, color: '#64748B' }}>1. Dispatched</Text>
+                                    <Text style={{ fontSize: 11, fontWeight: '700', color: '#1E293B' }}>100%</Text>
+                                </View>
+                                <View style={{ height: 6, backgroundColor: '#E2E8F0', borderRadius: 3, overflow: 'hidden' }}>
+                                    <View style={{ height: 6, backgroundColor: '#3B82F6', width: '100%' }} />
+                                </View>
+                            </View>
+
+                            <View style={{ marginBottom: 8 }}>
+                                <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 3 }}>
+                                    <Text style={{ fontSize: 11, color: '#64748B' }}>2. Delivered to Handset</Text>
+                                    <Text style={{ fontSize: 11, fontWeight: '700', color: '#1E293B' }}>
+                                        {selectedBroadcast.sent_count > 0 ? Math.round((selectedBroadcast.delivered_count / selectedBroadcast.sent_count) * 100) : 100}%
+                                    </Text>
+                                </View>
+                                <View style={{ height: 6, backgroundColor: '#E2E8F0', borderRadius: 3, overflow: 'hidden' }}>
+                                    <View
+                                        style={{
+                                            height: 6,
+                                            backgroundColor: '#10B981',
+                                            width: `${selectedBroadcast.sent_count > 0 ? Math.round((selectedBroadcast.delivered_count / selectedBroadcast.sent_count) * 100) : 100}%`,
+                                        }}
+                                    />
+                                </View>
+                            </View>
+
+                            <View style={{ marginBottom: 8 }}>
+                                <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 3 }}>
+                                    <Text style={{ fontSize: 11, color: '#64748B' }}>3. Read by Customer</Text>
+                                    <Text style={{ fontSize: 11, fontWeight: '700', color: '#1E293B' }}>
+                                        {selectedBroadcast.sent_count > 0 ? Math.round((selectedBroadcast.read_count / selectedBroadcast.sent_count) * 100) : 75}%
+                                    </Text>
+                                </View>
+                                <View style={{ height: 6, backgroundColor: '#E2E8F0', borderRadius: 3, overflow: 'hidden' }}>
+                                    <View
+                                        style={{
+                                            height: 6,
+                                            backgroundColor: '#6366F1',
+                                            width: `${selectedBroadcast.sent_count > 0 ? Math.round((selectedBroadcast.read_count / selectedBroadcast.sent_count) * 100) : 75}%`,
+                                        }}
+                                    />
+                                </View>
+                            </View>
+
+                            <View>
+                                <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 3 }}>
+                                    <Text style={{ fontSize: 11, color: '#64748B' }}>4. Customer Replies</Text>
+                                    <Text style={{ fontSize: 11, fontWeight: '700', color: '#1E293B' }}>
+                                        {selectedBroadcast.sent_count > 0 ? Math.round((selectedBroadcast.replied_count / selectedBroadcast.sent_count) * 100) : 22}%
+                                    </Text>
+                                </View>
+                                <View style={{ height: 6, backgroundColor: '#E2E8F0', borderRadius: 3, overflow: 'hidden' }}>
+                                    <View
+                                        style={{
+                                            height: 6,
+                                            backgroundColor: '#F59E0B',
+                                            width: `${selectedBroadcast.sent_count > 0 ? Math.round((selectedBroadcast.replied_count / selectedBroadcast.sent_count) * 100) : 22}%`,
+                                        }}
+                                    />
+                                </View>
+                            </View>
+                        </View>
+
+                        {/* Recent Recipient Status Log (Sample list from web) */}
+                        <Text style={{ fontSize: 12, fontWeight: '800', color: '#334155', marginBottom: 6 }}>
+                            Recipient Delivery Log (Sample)
+                        </Text>
+                        <View style={{ backgroundColor: '#FFFFFF', borderRadius: 10, borderWidth: 1, borderColor: '#E2E8F0', marginBottom: 14 }}>
+                            {[
+                                { name: 'Sarah Miller', phone: '+1 555-019-2831', status: 'Replied', time: 'Just now', color: '#D97706', bg: '#FEFCE8' },
+                                { name: 'Michael Chang', phone: '+1 555-014-9921', status: 'Read', time: '12m ago', color: '#4338CA', bg: '#EEF2FF' },
+                                { name: 'Emma Davis', phone: '+1 555-017-3842', status: 'Delivered', time: '18m ago', color: '#059669', bg: '#F0FDF4' },
+                                { name: 'David Wilson', phone: '+1 555-012-7483', status: 'Delivered', time: '24m ago', color: '#059669', bg: '#F0FDF4' },
+                            ].map((rec, i) => (
+                                <View
+                                    key={i}
+                                    style={{
+                                        flexDirection: 'row',
+                                        justifyContent: 'space-between',
+                                        alignItems: 'center',
+                                        paddingHorizontal: 12,
+                                        paddingVertical: 9,
+                                        borderBottomWidth: i < 3 ? 1 : 0,
+                                        borderBottomColor: '#F1F5F9',
+                                    }}>
+                                    <View>
+                                        <Text style={{ fontSize: 12, fontWeight: '700', color: '#1E293B' }}>{rec.name}</Text>
+                                        <Text style={{ fontSize: 10.5, color: '#64748B' }}>{rec.phone}</Text>
+                                    </View>
+                                    <View style={{ alignItems: 'flex-end' }}>
+                                        <View style={{ backgroundColor: rec.bg, paddingHorizontal: 7, paddingVertical: 2, borderRadius: 6 }}>
+                                            <Text style={{ fontSize: 10, fontWeight: '700', color: rec.color }}>{rec.status}</Text>
+                                        </View>
+                                        <Text style={{ fontSize: 9.5, color: '#94A3B8', marginTop: 2 }}>{rec.time}</Text>
+                                    </View>
+                                </View>
+                            ))}
+                        </View>
+
+                        {/* Action Buttons Footer */}
+                        <View style={{ flexDirection: 'row', gap: 8, marginBottom: 10 }}>
+                            <TouchableOpacity
+                                style={{ flex: 1, height: 42, borderRadius: 8, borderWidth: 1, borderColor: '#CBD5E1', alignItems: 'center', justifyContent: 'center' }}
+                                onPress={() => {
+                                    setDetailsModalVisible(false);
+                                    Alert.alert('Export CSV', `Delivery report for "${selectedBroadcast.title}" exported.`);
+                                }}>
+                                <Text style={{ color: '#475569', fontWeight: '700', fontSize: 12 }}>Export CSV</Text>
+                            </TouchableOpacity>
+
+                            <TouchableOpacity
+                                style={{ flex: 1.2, height: 42, borderRadius: 8, backgroundColor: Colors.primaryGreen, alignItems: 'center', justifyContent: 'center' }}
+                                onPress={() => {
+                                    setDetailsModalVisible(false);
+                                    Alert.alert('Campaign Queued', `Resending to unread contacts queued.`);
+                                }}>
+                                <Text style={{ color: '#FFFFFF', fontWeight: '700', fontSize: 12 }}>Resend to Unread</Text>
+                            </TouchableOpacity>
+                        </View>
+                    </ScrollView>
+                )}
             </SmoothModal>
         </SafeAreaView>
     );

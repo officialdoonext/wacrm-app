@@ -18,13 +18,10 @@ class RealtimeService {
         onNewMessage: (msg: any) => void,
         onUpdateMessage?: (msg: any) => void
     ): () => void {
-        const channelKey = `messages:${accountId}`;
-        if (this.channels[channelKey]) {
-            supabase.removeChannel(this.channels[channelKey]);
-        }
+        const uniqueKey = `messages_${accountId}_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
 
         const channel = supabase
-            .channel(channelKey)
+            .channel(uniqueKey)
             .on(
                 'postgres_changes',
                 { event: 'INSERT', schema: 'public', table: 'messages' },
@@ -39,11 +36,15 @@ class RealtimeService {
             )
             .subscribe();
 
-        this.channels[channelKey] = channel;
+        this.channels[uniqueKey] = channel;
 
         return () => {
-            supabase.removeChannel(channel);
-            delete this.channels[channelKey];
+            try {
+                supabase.removeChannel(channel);
+            } catch {
+                // ignore
+            }
+            delete this.channels[uniqueKey];
         };
     }
 
@@ -55,13 +56,10 @@ class RealtimeService {
         accountId: string,
         onConversationChange: (conv: any) => void
     ): () => void {
-        const channelKey = `conversations:${accountId}`;
-        if (this.channels[channelKey]) {
-            supabase.removeChannel(this.channels[channelKey]);
-        }
+        const uniqueKey = `conversations_${accountId}_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
 
         const channel = supabase
-            .channel(channelKey)
+            .channel(uniqueKey)
             .on(
                 'postgres_changes',
                 { event: '*', schema: 'public', table: 'conversations' },
@@ -69,11 +67,15 @@ class RealtimeService {
             )
             .subscribe();
 
-        this.channels[channelKey] = channel;
+        this.channels[uniqueKey] = channel;
 
         return () => {
-            supabase.removeChannel(channel);
-            delete this.channels[channelKey];
+            try {
+                supabase.removeChannel(channel);
+            } catch {
+                // ignore
+            }
+            delete this.channels[uniqueKey];
         };
     }
 

@@ -147,8 +147,23 @@ export const styles = StyleSheet.create({
     },
     bannerRight: {
         alignItems: 'flex-end',
+        justifyContent: 'center',
+    },
+    bannerActionsRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
         justifyContent: 'space-between',
-        height: 78,
+        marginTop: 12,
+        paddingTop: 10,
+        borderTopWidth: 1,
+        borderTopColor: '#DCF3E8',
+        flexWrap: 'wrap',
+        gap: 8,
+    },
+    bannerBtnGroup: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
     },
     groupGraphicCircle: {
         width: 44,

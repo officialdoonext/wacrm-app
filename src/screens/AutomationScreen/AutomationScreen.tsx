@@ -828,14 +828,6 @@ export const AutomationScreen: React.FC<AutomationScreenProps> = ({ onNavigateTa
                                                     ios_backgroundColor="#CBD5E1"
                                                     style={{ transform: [{ scaleX: 0.8 }, { scaleY: 0.8 }] }}
                                                 />
-                                                <TouchableOpacity
-                                                    activeOpacity={0.7}
-                                                    onPress={() => {
-                                                        setSelectedAutomation(item);
-                                                        setOptionsModalVisible(true);
-                                                    }}>
-                                                    <MoreDotsIcon size={16} color="#94A3B8" />
-                                                </TouchableOpacity>
                                             </View>
                                         </View>
 
@@ -865,6 +857,41 @@ export const AutomationScreen: React.FC<AutomationScreenProps> = ({ onNavigateTa
                                                     {(item.steps && item.steps.length) || 2} steps
                                                 </Text>
                                             </View>
+                                        </View>
+
+                                        {/* Horizontal Quick Action Icon Buttons on Card */}
+                                        <View style={styles.cardActionToolbar}>
+                                            <TouchableOpacity
+                                                style={styles.cardToolbarBtn}
+                                                activeOpacity={0.7}
+                                                onPress={() => handleOpenEdit(item)}>
+                                                <IconPencil size={13} color="#0284C7" />
+                                                <Text style={[styles.cardToolbarBtnText, { color: '#0284C7' }]}>Edit</Text>
+                                            </TouchableOpacity>
+
+                                            <TouchableOpacity
+                                                style={styles.cardToolbarBtn}
+                                                activeOpacity={0.7}
+                                                onPress={() => handleDuplicate(item)}>
+                                                <IconCopy size={13} color="#059669" />
+                                                <Text style={[styles.cardToolbarBtnText, { color: '#059669' }]}>Copy</Text>
+                                            </TouchableOpacity>
+
+                                            <TouchableOpacity
+                                                style={styles.cardToolbarBtn}
+                                                activeOpacity={0.7}
+                                                onPress={() => handleOpenLogs(item)}>
+                                                <IconFileText size={13} color="#7C3AED" />
+                                                <Text style={[styles.cardToolbarBtnText, { color: '#7C3AED' }]}>Logs</Text>
+                                            </TouchableOpacity>
+
+                                            <TouchableOpacity
+                                                style={[styles.cardToolbarBtn, styles.cardToolbarBtnDestructive]}
+                                                activeOpacity={0.7}
+                                                onPress={() => handleDeleteAutomation(item)}>
+                                                <IconTrash size={13} color="#EF4444" />
+                                                <Text style={[styles.cardToolbarBtnText, { color: '#EF4444' }]}>Delete</Text>
+                                            </TouchableOpacity>
                                         </View>
                                     </TouchableOpacity>
                                 );
@@ -929,10 +956,20 @@ export const AutomationScreen: React.FC<AutomationScreenProps> = ({ onNavigateTa
             {/* Smooth Modal: Automation Options Sheet */}
             <SmoothModal visible={optionsModalVisible} onClose={() => setOptionsModalVisible(false)}>
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
-                    <Text style={{ fontSize: 16, fontWeight: '800', color: '#0F172A' }} numberOfLines={1}>
+                    <Text style={{ fontSize: 16, fontWeight: '800', color: '#0F172A', flex: 1, marginRight: 12 }} numberOfLines={1}>
                         {selectedAutomation?.title}
                     </Text>
-                    <TouchableOpacity onPress={() => setOptionsModalVisible(false)}>
+                    <TouchableOpacity
+                        onPress={() => setOptionsModalVisible(false)}
+                        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                        style={{
+                            width: 32,
+                            height: 32,
+                            borderRadius: 16,
+                            backgroundColor: '#F1F5F9',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                        }}>
                         <IconClose size={18} color="#64748B" />
                     </TouchableOpacity>
                 </View>
@@ -992,8 +1029,8 @@ export const AutomationScreen: React.FC<AutomationScreenProps> = ({ onNavigateTa
 
             {/* Smooth Modal: Full Visual Multi-Step Builder */}
             <SmoothModal visible={builderModalVisible} onClose={() => setBuilderModalVisible(false)}>
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-                    <View>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+                    <View style={{ flex: 1, marginRight: 12 }}>
                         <Text style={{ fontSize: 17, fontWeight: '800', color: '#0F172A' }}>
                             {isEditing ? 'Edit Automation' : 'Create Automation'}
                         </Text>
@@ -1001,8 +1038,18 @@ export const AutomationScreen: React.FC<AutomationScreenProps> = ({ onNavigateTa
                             React to WhatsApp® events with automated multi-step actions
                         </Text>
                     </View>
-                    <TouchableOpacity onPress={() => setBuilderModalVisible(false)}>
-                        <IconClose size={20} color="#64748B" />
+                    <TouchableOpacity
+                        onPress={() => setBuilderModalVisible(false)}
+                        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                        style={{
+                            width: 32,
+                            height: 32,
+                            borderRadius: 16,
+                            backgroundColor: '#F1F5F9',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                        }}>
+                        <IconClose size={18} color="#64748B" />
                     </TouchableOpacity>
                 </View>
 
@@ -1387,8 +1434,18 @@ export const AutomationScreen: React.FC<AutomationScreenProps> = ({ onNavigateTa
             {/* Smooth Modal: Step Type Picker Modal (13 Step Types matching Web) */}
             <SmoothModal visible={stepPickerModalVisible} onClose={() => setStepPickerModalVisible(false)}>
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-                    <Text style={{ fontSize: 16, fontWeight: '800', color: '#0F172A' }}>Add Workflow Step</Text>
-                    <TouchableOpacity onPress={() => setStepPickerModalVisible(false)}>
+                    <Text style={{ fontSize: 16, fontWeight: '800', color: '#0F172A', flex: 1, marginRight: 12 }}>Add Workflow Step</Text>
+                    <TouchableOpacity
+                        onPress={() => setStepPickerModalVisible(false)}
+                        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                        style={{
+                            width: 32,
+                            height: 32,
+                            borderRadius: 16,
+                            backgroundColor: '#F1F5F9',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                        }}>
                         <IconClose size={18} color="#64748B" />
                     </TouchableOpacity>
                 </View>
@@ -1424,7 +1481,7 @@ export const AutomationScreen: React.FC<AutomationScreenProps> = ({ onNavigateTa
             {/* Smooth Modal: Execution Logs */}
             <SmoothModal visible={logsModalVisible} onClose={() => setLogsModalVisible(false)}>
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-                    <View>
+                    <View style={{ flex: 1, marginRight: 12 }}>
                         <Text style={{ fontSize: 16, fontWeight: '800', color: '#0F172A' }}>
                             Execution Logs
                         </Text>
@@ -1432,7 +1489,17 @@ export const AutomationScreen: React.FC<AutomationScreenProps> = ({ onNavigateTa
                             {selectedAutomation?.title}
                         </Text>
                     </View>
-                    <TouchableOpacity onPress={() => setLogsModalVisible(false)}>
+                    <TouchableOpacity
+                        onPress={() => setLogsModalVisible(false)}
+                        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                        style={{
+                            width: 32,
+                            height: 32,
+                            borderRadius: 16,
+                            backgroundColor: '#F1F5F9',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                        }}>
                         <IconClose size={18} color="#64748B" />
                     </TouchableOpacity>
                 </View>

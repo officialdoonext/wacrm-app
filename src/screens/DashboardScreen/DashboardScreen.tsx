@@ -55,17 +55,34 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
         });
     }, []);
 
-    const volumeData = [
-        { day: 'Mon', inbound: 45, outbound: 80 },
-        { day: 'Tue', inbound: 62, outbound: 95 },
-        { day: 'Wed', inbound: 85, outbound: 130 },
-        { day: 'Thu', inbound: 78, outbound: 110 },
-        { day: 'Fri', inbound: 92, outbound: 145 },
-        { day: 'Sat', inbound: 55, outbound: 70 },
-        { day: 'Sun', inbound: 40, outbound: 50 },
-    ];
+    const volumeDataMap = {
+        '7d': [
+            { day: 'Mon', inbound: 45, outbound: 80 },
+            { day: 'Tue', inbound: 62, outbound: 95 },
+            { day: 'Wed', inbound: 85, outbound: 130 },
+            { day: 'Thu', inbound: 78, outbound: 110 },
+            { day: 'Fri', inbound: 92, outbound: 145 },
+            { day: 'Sat', inbound: 55, outbound: 70 },
+            { day: 'Sun', inbound: 40, outbound: 50 },
+        ],
+        '30d': [
+            { day: 'W1', inbound: 280, outbound: 450 },
+            { day: 'W2', inbound: 340, outbound: 520 },
+            { day: 'W3', inbound: 410, outbound: 610 },
+            { day: 'W4', inbound: 390, outbound: 580 },
+        ],
+        'all': [
+            { day: 'Jan', inbound: 950, outbound: 1450 },
+            { day: 'Feb', inbound: 1120, outbound: 1680 },
+            { day: 'Mar', inbound: 1340, outbound: 1950 },
+            { day: 'Apr', inbound: 1510, outbound: 2200 },
+            { day: 'May', inbound: 1680, outbound: 2450 },
+            { day: 'Jun', inbound: 1820, outbound: 2600 },
+        ],
+    };
 
-    const maxVal = 160;
+    const volumeData = volumeDataMap[timeframe];
+    const maxVal = Math.max(...volumeData.map((d) => Math.max(d.inbound, d.outbound))) * 1.15;
 
     return (
         <SafeAreaView style={styles.safeArea} edges={['top', 'bottom', 'left', 'right']}>
@@ -103,6 +120,29 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
                 </View>
 
                 <ScrollView style={styles.scrollArea} showsVerticalScrollIndicator={false}>
+                    {/* Meta WhatsApp Cloud API Live Connection Bar */}
+                    <View style={styles.apiHealthCard}>
+                        <View style={styles.apiHealthHeader}>
+                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                                <View style={styles.pulsingGreenDot} />
+                                <Text style={styles.apiHealthTitle}>WhatsApp Cloud API Connected</Text>
+                            </View>
+                            <View style={styles.qualityPill}>
+                                <Text style={styles.qualityPillText}>Quality: HIGH</Text>
+                            </View>
+                        </View>
+                        <View style={styles.apiHealthDetailsRow}>
+                            <View>
+                                <Text style={styles.apiHealthSubLabel}>Sender Account</Text>
+                                <Text style={styles.apiHealthSubValue}>+1 (555) 019-2831</Text>
+                            </View>
+                            <View style={{ alignItems: 'flex-end' }}>
+                                <Text style={styles.apiHealthSubLabel}>24h Policy Limit</Text>
+                                <Text style={styles.apiHealthSubValue}>Tier 2 (10,000/day)</Text>
+                            </View>
+                        </View>
+                    </View>
+
                     {/* Quick Action Tiles Launcher */}
                     <Text style={styles.sectionHeader}>Quick Actions</Text>
                     <View style={styles.quickGrid}>
@@ -325,6 +365,32 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
                                 <Text style={styles.activityTime}>1 hour ago</Text>
                             </View>
                         </View>
+                    </View>
+
+                    {/* Team Performance Leaderboard (Matching Web Dashboard) */}
+                    <Text style={styles.sectionHeader}>Team Performance (Top Agents)</Text>
+                    <View style={styles.leaderboardCard}>
+                        {[
+                            { name: 'Sarah Miller', role: 'Senior Agent', chats: 24, speed: '1.8m avg', resolution: '98%', color: '#059669', bg: '#DCFCE7' },
+                            { name: 'Alex Morgan', role: 'Support Specialist', chats: 19, speed: '2.2m avg', resolution: '95%', color: '#2563EB', bg: '#DBEAFE' },
+                            { name: 'David Wilson', role: 'Sales Rep', chats: 15, speed: '3.1m avg', resolution: '92%', color: '#7C3AED', bg: '#EDE9FE' },
+                        ].map((agent, i) => (
+                            <View key={i} style={[styles.leaderboardRow, i < 2 && styles.leaderboardRowBorder]}>
+                                <View style={[styles.agentAvatar, { backgroundColor: agent.bg }]}>
+                                    <Text style={[styles.agentAvatarText, { color: agent.color }]}>
+                                        {agent.name.split(' ').map((n) => n[0]).join('')}
+                                    </Text>
+                                </View>
+                                <View style={{ flex: 1, marginLeft: 10 }}>
+                                    <Text style={styles.agentName}>{agent.name}</Text>
+                                    <Text style={styles.agentRole}>{agent.role} • {agent.chats} active chats</Text>
+                                </View>
+                                <View style={{ alignItems: 'flex-end' }}>
+                                    <Text style={styles.agentSpeed}>{agent.speed}</Text>
+                                    <Text style={styles.agentResolution}>{agent.resolution} SLA</Text>
+                                </View>
+                            </View>
+                        ))}
                     </View>
 
                     <View style={{ height: 40 }} />
@@ -620,5 +686,108 @@ const styles = StyleSheet.create({
         fontSize: 10.5,
         color: '#94A3B8',
         marginTop: 2,
+    },
+    // Meta API Live Health Card
+    apiHealthCard: {
+        backgroundColor: '#F0FDF4',
+        borderRadius: 12,
+        padding: 12,
+        marginTop: 12,
+        borderWidth: 1,
+        borderColor: '#DCFCE7',
+    },
+    apiHealthHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: 8,
+    },
+    pulsingGreenDot: {
+        width: 8,
+        height: 8,
+        borderRadius: 4,
+        backgroundColor: Colors.whatsappGreen,
+    },
+    apiHealthTitle: {
+        fontSize: 12.5,
+        fontWeight: '700',
+        color: '#166534',
+    },
+    qualityPill: {
+        backgroundColor: '#DCFCE7',
+        paddingHorizontal: 6,
+        paddingVertical: 2,
+        borderRadius: 4,
+    },
+    qualityPillText: {
+        fontSize: 9.5,
+        fontWeight: '800',
+        color: '#15803D',
+    },
+    apiHealthDetailsRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        paddingTop: 6,
+        borderTopWidth: 1,
+        borderTopColor: '#DCFCE7',
+    },
+    apiHealthSubLabel: {
+        fontSize: 10,
+        color: '#64748B',
+    },
+    apiHealthSubValue: {
+        fontSize: 12,
+        fontWeight: '700',
+        color: '#0F172A',
+        marginTop: 1,
+    },
+    // Agent Leaderboard
+    leaderboardCard: {
+        backgroundColor: '#FFFFFF',
+        borderRadius: 12,
+        paddingHorizontal: 12,
+        paddingVertical: 4,
+        borderWidth: 1,
+        borderColor: '#E2E8F0',
+    },
+    leaderboardRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingVertical: 10,
+    },
+    leaderboardRowBorder: {
+        borderBottomWidth: 1,
+        borderBottomColor: '#F1F5F9',
+    },
+    agentAvatar: {
+        width: 36,
+        height: 36,
+        borderRadius: 18,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    agentAvatarText: {
+        fontSize: 13,
+        fontWeight: '800',
+    },
+    agentName: {
+        fontSize: 13,
+        fontWeight: '700',
+        color: '#0F172A',
+    },
+    agentRole: {
+        fontSize: 11,
+        color: '#64748B',
+        marginTop: 1,
+    },
+    agentSpeed: {
+        fontSize: 12,
+        fontWeight: '700',
+        color: '#059669',
+    },
+    agentResolution: {
+        fontSize: 10.5,
+        color: '#64748B',
+        marginTop: 1,
     },
 });

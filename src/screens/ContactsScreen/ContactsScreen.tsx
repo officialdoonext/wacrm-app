@@ -29,6 +29,7 @@ import {
     IconTrash,
     IconCheckCircle,
     IconFileText,
+    IconPencil,
 } from '../../components/AppIcons';
 import {
     SearchIcon,
@@ -51,7 +52,7 @@ import {
     ClockInterestedIcon,
 } from '../../components/ContactsIcons';
 import { crmService, DynamicContact } from '../../services/crmService';
-import { authService, UserProfile } from '../../services/supabase';
+import { authService, UserProfile, supabase } from '../../services/supabase';
 
 export interface ContactItem {
     id: string;
@@ -111,6 +112,16 @@ export const ContactsScreen: React.FC<ContactsScreenProps> = ({
     ]);
     const [newFieldName, setNewFieldName] = useState('');
     const [newFieldType, setNewFieldType] = useState<'text' | 'number' | 'date' | 'boolean' | 'select'>('text');
+
+    // Contact Actions Toolbar / Sheet State (Edit & Delete)
+    const [selectedContact, setSelectedContact] = useState<DynamicContact | null>(null);
+    const [contactActionsModalVisible, setContactActionsModalVisible] = useState(false);
+    const [editContactModalVisible, setEditContactModalVisible] = useState(false);
+    const [editName, setEditName] = useState('');
+    const [editPhone, setEditPhone] = useState('');
+    const [editCompany, setEditCompany] = useState('');
+    const [editEmail, setEditEmail] = useState('');
+    const [isUpdatingContact, setIsUpdatingContact] = useState(false);
 
     useEffect(() => {
         authService.getProfile().then(setProfile);
@@ -187,6 +198,94 @@ export const ContactsScreen: React.FC<ContactsScreenProps> = ({
             'Export Contacts to CSV',
             `Exporting ${count} contacts with tags, custom fields, and E.164 phone numbers.\nFile: contacts_export_${Date.now().toString(36)}.csv`,
             [{ text: 'Share CSV via WhatsApp / Email' }]
+        );
+    };
+
+    // Contact Actions Toolbar Handlers (Edit & Delete)
+    const handleOpenContactActions = (contact: DynamicContact) => {
+        setSelectedContact(contact);
+        setContactActionsModalVisible(true);
+    };
+
+    const handleOpenEditContact = (contact: DynamicContact) => {
+        setSelectedContact(contact);
+        setEditName(contact.name || '');
+        setEditPhone(contact.phone || '');
+        setEditCompany(contact.company || '');
+        setEditEmail(contact.email || '');
+        setContactActionsModalVisible(false);
+        setEditContactModalVisible(true);
+    };
+
+    const handleSaveEditedContact = async () => {
+        if (!selectedContact) return;
+        if (!editName.trim()) {
+            Alert.alert('Validation Error', 'Contact name is required.');
+            return;
+        }
+        setIsUpdatingContact(true);
+        try {
+            const { error } = await supabase
+                .from('contacts')
+                .update({
+                    name: editName.trim(),
+                    phone: editPhone.trim(),
+                    company: editCompany.trim() || null,
+                    email: editEmail.trim() || null,
+                })
+                .eq('id', selectedContact.id);
+
+            if (error) throw error;
+
+            setContacts((prev) =>
+                prev.map((c) =>
+                    c.id === selectedContact.id
+                        ? {
+                              ...c,
+                              name: editName.trim(),
+                              phone: editPhone.trim(),
+                              company: editCompany.trim(),
+                              email: editEmail.trim(),
+                          }
+                        : c
+                )
+            );
+            setEditContactModalVisible(false);
+            Alert.alert('Success', 'Contact updated successfully.');
+        } catch (err: any) {
+            Alert.alert('Error', err?.message || 'Failed to update contact.');
+        } finally {
+            setIsUpdatingContact(false);
+        }
+    };
+
+    const handleDeleteContact = (contact: DynamicContact) => {
+        setContactActionsModalVisible(false);
+        Alert.alert(
+            'Delete Contact',
+            `Are you sure you want to delete "${contact.name}"? This cannot be undone.`,
+            [
+                { text: 'Cancel', style: 'cancel' },
+                {
+                    text: 'Delete',
+                    style: 'destructive',
+                    onPress: async () => {
+                        try {
+                            const { error } = await supabase
+                                .from('contacts')
+                                .delete()
+                                .eq('id', contact.id);
+
+                            if (error) throw error;
+
+                            setContacts((prev) => prev.filter((c) => c.id !== contact.id));
+                            Alert.alert('Deleted', 'Contact has been removed.');
+                        } catch (err: any) {
+                            Alert.alert('Error', err?.message || 'Failed to delete contact.');
+                        }
+                    },
+                },
+            ]
         );
     };
 
@@ -348,69 +447,72 @@ export const ContactsScreen: React.FC<ContactsScreenProps> = ({
                                                         </Text>
                                                     </View>
                                                 </View>
+                                            </View>
+                                        </View>
 
+                                        {/* Action Buttons Row */}
+                                        <View style={styles.bannerActionsRow}>
+                                            <TouchableOpacity
+                                                style={styles.addContactBtn}
+                                                activeOpacity={0.85}
+                                                onPress={() => setAddModalVisible(true)}>
+                                                <Text style={styles.addContactBtnText}>+ Add Contact</Text>
+                                            </TouchableOpacity>
+
+                                            <View style={styles.bannerBtnGroup}>
                                                 <TouchableOpacity
-                                                    style={styles.addContactBtn}
-                                                    activeOpacity={0.85}
-                                                    onPress={() => setAddModalVisible(true)}>
-                                                    <Text style={styles.addContactBtnText}>+ Add Contact</Text>
+                                                    style={{
+                                                        backgroundColor: '#F1F5F9',
+                                                        borderRadius: 8,
+                                                        paddingHorizontal: 10,
+                                                        paddingVertical: 7,
+                                                        flexDirection: 'row',
+                                                        alignItems: 'center',
+                                                        gap: 4,
+                                                    }}
+                                                    onPress={() => {
+                                                        setCsvStep(1);
+                                                        setCsvModalVisible(true);
+                                                    }}>
+                                                    <IconDownload size={13} color="#334155" />
+                                                    <Text style={{ fontSize: 11, fontWeight: '700', color: '#334155' }}>
+                                                        Import CSV
+                                                    </Text>
                                                 </TouchableOpacity>
 
-                                                <View style={{ flexDirection: 'row', gap: 6, marginTop: 8 }}>
-                                                    <TouchableOpacity
-                                                        style={{
-                                                            backgroundColor: '#F1F5F9',
-                                                            borderRadius: 8,
-                                                            paddingHorizontal: 8,
-                                                            paddingVertical: 5,
-                                                            flexDirection: 'row',
-                                                            alignItems: 'center',
-                                                            gap: 4,
-                                                        }}
-                                                        onPress={() => {
-                                                            setCsvStep(1);
-                                                            setCsvModalVisible(true);
-                                                        }}>
-                                                        <IconDownload size={13} color="#334155" />
-                                                        <Text style={{ fontSize: 11, fontWeight: '700', color: '#334155' }}>
-                                                            Import CSV
-                                                        </Text>
-                                                    </TouchableOpacity>
+                                                <TouchableOpacity
+                                                    style={{
+                                                        backgroundColor: '#F1F5F9',
+                                                        borderRadius: 8,
+                                                        paddingHorizontal: 10,
+                                                        paddingVertical: 7,
+                                                        flexDirection: 'row',
+                                                        alignItems: 'center',
+                                                        gap: 4,
+                                                    }}
+                                                    onPress={() => handleExportContacts()}>
+                                                    <IconUpload size={13} color="#334155" />
+                                                    <Text style={{ fontSize: 11, fontWeight: '700', color: '#334155' }}>
+                                                        Export
+                                                    </Text>
+                                                </TouchableOpacity>
 
-                                                    <TouchableOpacity
-                                                        style={{
-                                                            backgroundColor: '#F1F5F9',
-                                                            borderRadius: 8,
-                                                            paddingHorizontal: 8,
-                                                            paddingVertical: 5,
-                                                            flexDirection: 'row',
-                                                            alignItems: 'center',
-                                                            gap: 4,
-                                                        }}
-                                                        onPress={() => handleExportContacts()}>
-                                                        <IconUpload size={13} color="#334155" />
-                                                        <Text style={{ fontSize: 11, fontWeight: '700', color: '#334155' }}>
-                                                            Export
-                                                        </Text>
-                                                    </TouchableOpacity>
-
-                                                    <TouchableOpacity
-                                                        style={{
-                                                            backgroundColor: '#EDE9FE',
-                                                            borderRadius: 8,
-                                                            paddingHorizontal: 8,
-                                                            paddingVertical: 5,
-                                                            flexDirection: 'row',
-                                                            alignItems: 'center',
-                                                            gap: 4,
-                                                        }}
-                                                        onPress={() => setCustomFieldsModalVisible(true)}>
-                                                        <IconSettings size={13} color="#7C3AED" />
-                                                        <Text style={{ fontSize: 11, fontWeight: '700', color: '#7C3AED' }}>
-                                                            Fields
-                                                        </Text>
-                                                    </TouchableOpacity>
-                                                </View>
+                                                <TouchableOpacity
+                                                    style={{
+                                                        backgroundColor: '#EDE9FE',
+                                                        borderRadius: 8,
+                                                        paddingHorizontal: 10,
+                                                        paddingVertical: 7,
+                                                        flexDirection: 'row',
+                                                        alignItems: 'center',
+                                                        gap: 4,
+                                                    }}
+                                                    onPress={() => setCustomFieldsModalVisible(true)}>
+                                                    <IconSettings size={13} color="#7C3AED" />
+                                                    <Text style={{ fontSize: 11, fontWeight: '700', color: '#7C3AED' }}>
+                                                        Fields
+                                                    </Text>
+                                                </TouchableOpacity>
                                             </View>
                                         </View>
                                     </View>
@@ -660,7 +762,10 @@ export const ContactsScreen: React.FC<ContactsScreenProps> = ({
                                                     <WhatsAppMiniBadge size={20} />
                                                 </TouchableOpacity>
 
-                                                <TouchableOpacity style={styles.moreBtn} activeOpacity={0.7}>
+                                                <TouchableOpacity
+                                                    style={styles.moreBtn}
+                                                    activeOpacity={0.7}
+                                                    onPress={() => handleOpenContactActions(item)}>
                                                     <MoreDotsIcon size={16} color="#94A3B8" />
                                                 </TouchableOpacity>
                                             </View>
@@ -1129,6 +1234,171 @@ export const ContactsScreen: React.FC<ContactsScreenProps> = ({
                     onPress={() => setCustomFieldsModalVisible(false)}>
                     <Text style={{ color: '#64748B', fontWeight: '600', fontSize: 14 }}>Close</Text>
                 </TouchableOpacity>
+            </SmoothModal>
+            {/* Smooth Modal: Contact Actions Toolbar / Sheet */}
+            <SmoothModal visible={contactActionsModalVisible} onClose={() => setContactActionsModalVisible(false)}>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+                    <View style={{ flex: 1, marginRight: 12 }}>
+                        <Text style={{ fontSize: 16, fontWeight: '800', color: '#0F172A' }} numberOfLines={1}>
+                            {selectedContact?.name}
+                        </Text>
+                        <Text style={{ fontSize: 12, color: '#64748B' }}>
+                            {selectedContact?.phone} {selectedContact?.company ? `• ${selectedContact.company}` : ''}
+                        </Text>
+                    </View>
+                    <TouchableOpacity
+                        onPress={() => setContactActionsModalVisible(false)}
+                        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                        style={{
+                            width: 32,
+                            height: 32,
+                            borderRadius: 16,
+                            backgroundColor: '#F1F5F9',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                        }}>
+                        <IconClose size={18} color="#64748B" />
+                    </TouchableOpacity>
+                </View>
+
+                {selectedContact && (
+                    <View style={{ gap: 4 }}>
+                        {/* 1. Edit Contact */}
+                        <TouchableOpacity
+                            style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#F1F5F9' }}
+                            activeOpacity={0.7}
+                            onPress={() => handleOpenEditContact(selectedContact)}>
+                            <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: '#E0F2FE', alignItems: 'center', justifyContent: 'center', marginRight: 12 }}>
+                                <IconPencil size={18} color="#0284C7" />
+                            </View>
+                            <View style={{ flex: 1 }}>
+                                <Text style={{ fontSize: 14, fontWeight: '700', color: '#1E293B' }}>Edit Contact</Text>
+                                <Text style={{ fontSize: 11, color: '#64748B' }}>Update name, phone, company, or email</Text>
+                            </View>
+                        </TouchableOpacity>
+
+                        {/* 2. Open WhatsApp Chat */}
+                        <TouchableOpacity
+                            style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#F1F5F9' }}
+                            activeOpacity={0.7}
+                            onPress={() => {
+                                setContactActionsModalVisible(false);
+                                handleOpenChat(selectedContact);
+                            }}>
+                            <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: '#DCFCE7', alignItems: 'center', justifyContent: 'center', marginRight: 12 }}>
+                                <WhatsAppMiniBadge size={20} />
+                            </View>
+                            <View style={{ flex: 1 }}>
+                                <Text style={{ fontSize: 14, fontWeight: '700', color: '#1E293B' }}>Open WhatsApp Chat</Text>
+                                <Text style={{ fontSize: 11, color: '#64748B' }}>Start or view conversation thread</Text>
+                            </View>
+                        </TouchableOpacity>
+
+                        {/* 3. Delete Contact */}
+                        <TouchableOpacity
+                            style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 12 }}
+                            activeOpacity={0.7}
+                            onPress={() => handleDeleteContact(selectedContact)}>
+                            <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: '#FEE2E2', alignItems: 'center', justifyContent: 'center', marginRight: 12 }}>
+                                <IconTrash size={18} color="#DC2626" />
+                            </View>
+                            <View style={{ flex: 1 }}>
+                                <Text style={{ fontSize: 14, fontWeight: '700', color: '#DC2626' }}>Delete Contact</Text>
+                                <Text style={{ fontSize: 11, color: '#EF4444' }}>Remove contact permanently from CRM</Text>
+                            </View>
+                        </TouchableOpacity>
+                    </View>
+                )}
+            </SmoothModal>
+
+            {/* Smooth Modal: Edit Contact Form */}
+            <SmoothModal visible={editContactModalVisible} onClose={() => setEditContactModalVisible(false)}>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+                    <View style={{ flex: 1, marginRight: 12 }}>
+                        <Text style={{ fontSize: 16, fontWeight: '800', color: '#0F172A' }}>
+                            Edit Contact
+                        </Text>
+                        <Text style={{ fontSize: 11.5, color: '#64748B' }}>
+                            Update contact profile in Supabase database
+                        </Text>
+                    </View>
+                    <TouchableOpacity
+                        onPress={() => setEditContactModalVisible(false)}
+                        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                        style={{
+                            width: 32,
+                            height: 32,
+                            borderRadius: 16,
+                            backgroundColor: '#F1F5F9',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                        }}>
+                        <IconClose size={18} color="#64748B" />
+                    </TouchableOpacity>
+                </View>
+
+                <KeyboardAwareScrollView
+                    enableOnAndroid={true}
+                    extraScrollHeight={Platform.select({ ios: 20, android: 40 })}
+                    keyboardShouldPersistTaps="handled">
+                    <Text style={{ fontSize: 12, fontWeight: '700', color: '#334155', marginBottom: 4 }}>Full Name *</Text>
+                    <TextInput
+                        style={{ height: 42, borderWidth: 1, borderColor: '#CBD5E1', borderRadius: 8, paddingHorizontal: 10, fontSize: 13, color: '#0F172A', backgroundColor: '#FFFFFF', marginBottom: 10 }}
+                        placeholder="e.g. John Doe"
+                        placeholderTextColor="#94A3B8"
+                        value={editName}
+                        onChangeText={setEditName}
+                    />
+
+                    <Text style={{ fontSize: 12, fontWeight: '700', color: '#334155', marginBottom: 4 }}>Phone Number * (E.164)</Text>
+                    <TextInput
+                        style={{ height: 42, borderWidth: 1, borderColor: '#CBD5E1', borderRadius: 8, paddingHorizontal: 10, fontSize: 13, color: '#0F172A', backgroundColor: '#FFFFFF', marginBottom: 10 }}
+                        placeholder="e.g. +1234567890"
+                        placeholderTextColor="#94A3B8"
+                        keyboardType="phone-pad"
+                        value={editPhone}
+                        onChangeText={setEditPhone}
+                    />
+
+                    <Text style={{ fontSize: 12, fontWeight: '700', color: '#334155', marginBottom: 4 }}>Company / Organization</Text>
+                    <TextInput
+                        style={{ height: 42, borderWidth: 1, borderColor: '#CBD5E1', borderRadius: 8, paddingHorizontal: 10, fontSize: 13, color: '#0F172A', backgroundColor: '#FFFFFF', marginBottom: 10 }}
+                        placeholder="e.g. Acme Corp"
+                        placeholderTextColor="#94A3B8"
+                        value={editCompany}
+                        onChangeText={setEditCompany}
+                    />
+
+                    <Text style={{ fontSize: 12, fontWeight: '700', color: '#334155', marginBottom: 4 }}>Email Address</Text>
+                    <TextInput
+                        style={{ height: 42, borderWidth: 1, borderColor: '#CBD5E1', borderRadius: 8, paddingHorizontal: 10, fontSize: 13, color: '#0F172A', backgroundColor: '#FFFFFF', marginBottom: 16 }}
+                        placeholder="e.g. john@example.com"
+                        placeholderTextColor="#94A3B8"
+                        keyboardType="email-address"
+                        autoCapitalize="none"
+                        value={editEmail}
+                        onChangeText={setEditEmail}
+                    />
+
+                    <View style={{ flexDirection: 'row', gap: 10 }}>
+                        <TouchableOpacity
+                            style={{ flex: 1, height: 44, borderRadius: 10, borderWidth: 1, borderColor: '#CBD5E1', alignItems: 'center', justifyContent: 'center' }}
+                            onPress={() => setEditContactModalVisible(false)}>
+                            <Text style={{ color: '#64748B', fontWeight: '600', fontSize: 14 }}>Cancel</Text>
+                        </TouchableOpacity>
+
+                        <TouchableOpacity
+                            style={{ flex: 2, height: 44, borderRadius: 10, backgroundColor: Colors.primaryGreen, alignItems: 'center', justifyContent: 'center' }}
+                            disabled={isUpdatingContact}
+                            onPress={handleSaveEditedContact}>
+                            {isUpdatingContact ? (
+                                <ActivityIndicator color="#FFFFFF" size="small" />
+                            ) : (
+                                <Text style={{ color: '#FFFFFF', fontWeight: '700', fontSize: 14 }}>Save Changes</Text>
+                            )}
+                        </TouchableOpacity>
+                    </View>
+                </KeyboardAwareScrollView>
             </SmoothModal>
         </SafeAreaView>
     );

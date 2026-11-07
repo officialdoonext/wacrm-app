@@ -88,12 +88,11 @@ export const styles = StyleSheet.create({
         marginHorizontal: 16,
         marginTop: 8,
         marginBottom: 10,
-        borderRadius: 20,
+        borderRadius: 18,
         backgroundColor: '#E8F8F0',
-        padding: 16,
+        padding: 14,
         position: 'relative',
         overflow: 'hidden',
-        minHeight: 160,
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
@@ -101,22 +100,23 @@ export const styles = StyleSheet.create({
         borderColor: '#DCF3E8',
     },
     heroContentLeft: {
-        flex: 1.15,
-        justifyContent: 'space-between',
+        flex: 1,
+        justifyContent: 'center',
+        paddingRight: 8,
         zIndex: 2,
     },
     heroTitle: {
-        fontSize: IS_SMALL_SCREEN ? 17 : 19,
+        fontSize: IS_SMALL_SCREEN ? 16 : 18,
         fontWeight: '900',
         color: '#0B1528',
-        lineHeight: IS_SMALL_SCREEN ? 22 : 24,
+        lineHeight: IS_SMALL_SCREEN ? 21 : 23,
         letterSpacing: -0.3,
     },
     heroSubtitle: {
         fontSize: 11,
         color: '#64748B',
         lineHeight: 15,
-        marginTop: 6,
+        marginTop: 4,
         fontWeight: '400',
     },
     createBtn: {
@@ -127,7 +127,7 @@ export const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         alignSelf: 'flex-start',
-        marginTop: 12,
+        marginTop: 10,
         shadowColor: Colors.primaryGreen,
         shadowOffset: { width: 0, height: 2 },
         shadowOpacity: 0.2,
@@ -143,10 +143,10 @@ export const styles = StyleSheet.create({
 
     // Hero Orbit Diagram Area
     heroNetworkArea: {
-        flex: 0.95,
-        height: 145,
+        width: 80,
+        height: 80,
         justifyContent: 'center',
-        alignItems: 'flex-end',
+        alignItems: 'center',
     },
 
     // 4 Top Stats Cards Row: Vertically stacked to prevent text clipping
@@ -315,16 +315,35 @@ export const styles = StyleSheet.create({
         textAlign: 'right',
     },
 
-    // Bottom Metrics Row: Starts directly under the description text (indented 54px)
+    // Bottom Metrics 4-Pill Grid: Full width uncrowded stat badges
     metricsRow: {
         flexDirection: 'row',
         alignItems: 'center',
+        justifyContent: 'space-between',
         marginTop: 10,
-        paddingTop: 8,
+        paddingTop: 10,
         borderTopWidth: 1,
-        borderTopColor: '#F8FAFC',
-        paddingLeft: 54, // Exactly matches icon width (44px) + margin (10px)
-        gap: 16,
+        borderTopColor: '#F1F5F9',
+        gap: 6,
+    },
+    metricCardPill: {
+        flex: 1,
+        borderRadius: 8,
+        paddingVertical: 5,
+        paddingHorizontal: 2,
+        alignItems: 'center',
+        justifyContent: 'center',
+        borderWidth: 1,
+    },
+    metricCardValue: {
+        fontSize: 12,
+        fontWeight: '800',
+        marginBottom: 1,
+    },
+    metricCardLabel: {
+        fontSize: 9,
+        fontWeight: '700',
+        textTransform: 'uppercase',
     },
     metricItem: {
         flexDirection: 'row',

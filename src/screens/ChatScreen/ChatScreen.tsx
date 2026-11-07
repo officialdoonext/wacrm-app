@@ -50,6 +50,8 @@ import {
     IconPhone,
     IconDollar,
     IconCheck,
+    IconSmile,
+    IconVideo,
 } from '../../components/AppIcons';
 import { SmoothModal } from '../../components/SmoothModal';
 import { crmService, DynamicMessage } from '../../services/crmService';
@@ -66,6 +68,30 @@ export interface ChatParticipant {
     lastMessageAt?: string;
     aiAutoreplyDisabled?: boolean;
 }
+
+const EMOJI_SETS: Record<string, string[]> = {
+    Smileys: [
+        '😀', '😃', '😄', '😁', '😆', '😅', '😂', '🤣', '😊', '😇',
+        '🙂', '😉', '😌', '😍', '🥰', '😘', '😋', '😎', '🤩', '🥳',
+        '😏', '🤔', '🤫', '🤗', '🤐', '😮', '😯', '😲', '😳', '🥺',
+        '😭', '😤', '😡', '🤯', '😱', '👋', '🎉', '🔥', '✨', '💯',
+    ],
+    Gestures: [
+        '👍', '👎', '👌', '✌️', '🤞', '🤟', '🤘', '🤙', '👈', '👉',
+        '👆', '👇', '✋', '🤚', '🖐️', '🖖', '👋', '🤝', '🙏', '👏',
+        '🙌', '👐', '🤲', '💪', '👊', '✊', '🤛', '🤜', '🎯', '⚡',
+    ],
+    Hearts: [
+        '❤️', '🧡', '💛', '💚', '💙', '💜', '🖤', '🤍', '🤎', '💔',
+        '❣️', '💕', '💞', '💓', '💗', '💖', '💘', '💝', '⭐', '🌟',
+        '💫', '💥', '🎉', '🎊', '🎁', '🎈', '🏆', '🥇', '✔️', '✅',
+    ],
+    Work: [
+        '💼', '📁', '📂', '📄', '📃', '📋', '📊', '📈', '📉', '🏷️',
+        '📦', '📬', '📫', '✉️', '📧', '📞', '📱', '💻', '🖥️', '💡',
+        '⏰', '📅', '📆', '🗓️', '💰', '💳', '💵', '🤝', '🚀', '📌',
+    ],
+};
 
 interface ChatScreenProps {
     participant?: ChatParticipant;
@@ -112,6 +138,10 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
     // Floating Reactions Tray
     const [reactionTargetId, setReactionTargetId] = useState<string | null>(null);
     const [messageReactions, setMessageReactions] = useState<Record<string, string>>({});
+
+    // Curated Emoji Picker Tray State
+    const [emojiPickerVisible, setEmojiPickerVisible] = useState(false);
+    const [activeEmojiCategory, setActiveEmojiCategory] = useState<'Smileys' | 'Gestures' | 'Hearts' | 'Work'>('Smileys');
 
     // Template Picker
     const [selectedTemplateName, setSelectedTemplateName] = useState('welcome_offer');
@@ -789,6 +819,16 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
                             </TouchableOpacity>
 
                             <View style={localStyles.inputPill}>
+                                <TouchableOpacity
+                                    style={localStyles.emojiToggleBtn}
+                                    activeOpacity={0.7}
+                                    onPress={() => {
+                                        Keyboard.dismiss();
+                                        setEmojiPickerVisible(!emojiPickerVisible);
+                                    }}>
+                                    <IconSmile size={20} color={emojiPickerVisible ? Colors.whatsappGreen : '#64748B'} />
+                                </TouchableOpacity>
+
                                 <TextInput
                                     style={localStyles.composerInput}
                                     placeholder={
@@ -798,6 +838,7 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
                                     }
                                     placeholderTextColor="#94A3B8"
                                     value={inputText}
+                                    onFocus={() => setEmojiPickerVisible(false)}
                                     onChangeText={(txt) => {
                                         setInputText(txt);
                                         if (txt === '/') {
@@ -842,6 +883,45 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
                             </TouchableOpacity>
                         </View>
                     )}
+
+                    {/* Curated WhatsApp Emoji Picker Tray */}
+                    {emojiPickerVisible && (
+                        <View style={localStyles.emojiTrayContainer}>
+                            <View style={localStyles.emojiCategoryRow}>
+                                {(['Smileys', 'Gestures', 'Hearts', 'Work'] as const).map((cat) => (
+                                    <TouchableOpacity
+                                        key={cat}
+                                        style={[
+                                            localStyles.emojiCategoryTab,
+                                            activeEmojiCategory === cat && localStyles.emojiCategoryTabActive,
+                                        ]}
+                                        onPress={() => setActiveEmojiCategory(cat)}>
+                                        <Text
+                                            style={[
+                                                localStyles.emojiCategoryLabel,
+                                                activeEmojiCategory === cat && localStyles.emojiCategoryLabelActive,
+                                            ]}>
+                                            {cat}
+                                        </Text>
+                                    </TouchableOpacity>
+                                ))}
+                            </View>
+                            <ScrollView
+                                style={localStyles.emojiGridScroll}
+                                contentContainerStyle={localStyles.emojiGridContent}
+                                keyboardShouldPersistTaps="handled">
+                                {EMOJI_SETS[activeEmojiCategory].map((emoji, idx) => (
+                                    <TouchableOpacity
+                                        key={`${emoji}-${idx}`}
+                                        style={localStyles.emojiItemBtn}
+                                        activeOpacity={0.6}
+                                        onPress={() => setInputText((prev) => prev + emoji)}>
+                                        <Text style={localStyles.emojiItemChar}>{emoji}</Text>
+                                    </TouchableOpacity>
+                                ))}
+                            </ScrollView>
+                        </View>
+                    )}
                 </View>
             </KeyboardAvoidingView>
 
@@ -859,8 +939,53 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
                         <IconCamera size={18} color="#059669" />
                     </View>
                     <View style={{ flex: 1 }}>
-                        <Text style={localStyles.modalActionTitle}>Photo / Media Attachment</Text>
-                        <Text style={localStyles.modalActionSub}>Upload to chat-media bucket & dispatch</Text>
+                        <Text style={localStyles.modalActionTitle}>Photos & Media</Text>
+                        <Text style={localStyles.modalActionSub}>Upload high-res images to chat-media</Text>
+                    </View>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                    style={localStyles.modalActionRow}
+                    onPress={() => {
+                        setAttachmentModalVisible(false);
+                        handleSend('Product Demo & Tutorial Video', 'video', 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4');
+                    }}>
+                    <View style={[localStyles.modalActionIcon, { backgroundColor: '#DBEAFE' }]}>
+                        <IconVideo size={18} color="#1E40AF" />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                        <Text style={localStyles.modalActionTitle}>Video Clip</Text>
+                        <Text style={localStyles.modalActionSub}>Send HD product demo or explainer video</Text>
+                    </View>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                    style={localStyles.modalActionRow}
+                    onPress={() => {
+                        setAttachmentModalVisible(false);
+                        handleSend('Invoice & Agreement Proposal (PDF)', 'document', 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf');
+                    }}>
+                    <View style={[localStyles.modalActionIcon, { backgroundColor: '#FEE2E2' }]}>
+                        <IconFileText size={18} color="#DC2626" />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                        <Text style={localStyles.modalActionTitle}>Document & PDF</Text>
+                        <Text style={localStyles.modalActionSub}>Send invoice, price sheet, or legal contract</Text>
+                    </View>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                    style={localStyles.modalActionRow}
+                    onPress={() => {
+                        setAttachmentModalVisible(false);
+                        handleStartRecording();
+                    }}>
+                    <View style={[localStyles.modalActionIcon, { backgroundColor: '#FEF3C7' }]}>
+                        <MicIcon size={18} color="#D97706" />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                        <Text style={localStyles.modalActionTitle}>Audio Voice Note</Text>
+                        <Text style={localStyles.modalActionSub}>Record & send live WhatsApp voice note</Text>
                     </View>
                 </TouchableOpacity>
 
@@ -870,12 +995,12 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
                         setAttachmentModalVisible(false);
                         setTemplateModalVisible(true);
                     }}>
-                    <View style={[localStyles.modalActionIcon, { backgroundColor: '#FEF3C7' }]}>
-                        <ClipboardIcon size={18} color="#D97706" />
+                    <View style={[localStyles.modalActionIcon, { backgroundColor: '#EDE9FE' }]}>
+                        <ClipboardIcon size={18} color="#7C3AED" />
                     </View>
                     <View style={{ flex: 1 }}>
-                        <Text style={localStyles.modalActionTitle}>Meta Message Template</Text>
-                        <Text style={localStyles.modalActionSub}>Send verified business template</Text>
+                        <Text style={localStyles.modalActionTitle}>Meta Approved Template</Text>
+                        <Text style={localStyles.modalActionSub}>Verified HSM notification template</Text>
                     </View>
                 </TouchableOpacity>
 
@@ -885,12 +1010,27 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
                         setAttachmentModalVisible(false);
                         setInteractiveModalVisible(true);
                     }}>
-                    <View style={[localStyles.modalActionIcon, { backgroundColor: '#EDE9FE' }]}>
-                        <IconStore size={18} color="#7C3AED" />
+                    <View style={[localStyles.modalActionIcon, { backgroundColor: '#FCE7F3' }]}>
+                        <IconStore size={18} color="#BE185D" />
                     </View>
                     <View style={{ flex: 1 }}>
                         <Text style={localStyles.modalActionTitle}>Interactive WhatsApp Buttons</Text>
-                        <Text style={localStyles.modalActionSub}>1-3 action reply buttons for automated triage</Text>
+                        <Text style={localStyles.modalActionSub}>1-3 action reply buttons for triage</Text>
+                    </View>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                    style={localStyles.modalActionRow}
+                    onPress={() => {
+                        setAttachmentModalVisible(false);
+                        handleSend('Enterprise Automation Suite - $499/mo', 'text', 'https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=600');
+                    }}>
+                    <View style={[localStyles.modalActionIcon, { backgroundColor: '#CCFBF1' }]}>
+                        <IconDollar size={18} color="#0F766E" />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                        <Text style={localStyles.modalActionTitle}>Commerce Catalog Products</Text>
+                        <Text style={localStyles.modalActionSub}>Share items from business product inventory</Text>
                     </View>
                 </TouchableOpacity>
 
@@ -900,8 +1040,8 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
                         setAttachmentModalVisible(false);
                         setQuickRepliesVisible(true);
                     }}>
-                    <View style={[localStyles.modalActionIcon, { backgroundColor: '#DBEAFE' }]}>
-                        <ZapIcon size={18} color="#1E40AF" />
+                    <View style={[localStyles.modalActionIcon, { backgroundColor: '#E0E7FF' }]}>
+                        <ZapIcon size={18} color="#4338CA" />
                     </View>
                     <View style={{ flex: 1 }}>
                         <Text style={localStyles.modalActionTitle}>Quick Replies Shortcuts (/)</Text>
@@ -1501,6 +1641,62 @@ const localStyles = StyleSheet.create({
         fontSize: 14,
         color: '#1E293B',
         paddingVertical: Platform.OS === 'ios' ? 8 : 4,
+    },
+    emojiToggleBtn: {
+        padding: 4,
+        marginRight: 4,
+    },
+    emojiTrayContainer: {
+        backgroundColor: '#FFFFFF',
+        borderTopWidth: 1,
+        borderTopColor: '#E2E8F0',
+        height: 220,
+    },
+    emojiCategoryRow: {
+        flexDirection: 'row',
+        borderBottomWidth: 1,
+        borderBottomColor: '#F1F5F9',
+        backgroundColor: '#F8FAFC',
+    },
+    emojiCategoryTab: {
+        flex: 1,
+        paddingVertical: 8,
+        alignItems: 'center',
+        borderBottomWidth: 2,
+        borderBottomColor: 'transparent',
+    },
+    emojiCategoryTabActive: {
+        borderBottomColor: Colors.whatsappGreen,
+        backgroundColor: '#FFFFFF',
+    },
+    emojiCategoryLabel: {
+        fontSize: 11,
+        fontWeight: '600',
+        color: '#64748B',
+    },
+    emojiCategoryLabelActive: {
+        color: Colors.whatsappGreen,
+        fontWeight: '700',
+    },
+    emojiGridScroll: {
+        flex: 1,
+        paddingHorizontal: 8,
+        paddingTop: 8,
+    },
+    emojiGridContent: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        justifyContent: 'flex-start',
+        paddingBottom: 20,
+    },
+    emojiItemBtn: {
+        width: '12.5%',
+        height: 40,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    emojiItemChar: {
+        fontSize: 22,
     },
     aiDraftPillBtn: {
         padding: 4,
