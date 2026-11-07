@@ -255,53 +255,77 @@ class CRMService {
   ): Promise<DynamicMessage[]> {
     const limit = options?.limit ?? 24;
     const beforeTimestamp = options?.beforeTimestamp;
-    if (!forceRefresh && messagesCache[conversationId]?.length) {
+
+    // Only serve from cache on initial load if not forcing refresh
+    if (!forceRefresh && !beforeTimestamp && messagesCache[conversationId]?.length) {
       this.refreshMessagesInBackground(conversationId);
-      return messagesCache[conversationId];
+      return Promise.resolve(messagesCache[conversationId]);
     }
 
-    try {
-      const { data, error } = await supabase
-        .from('messages')
-        .select('*')
-        .eq('conversation_id', conversationId)
-        .order('created_at', { ascending: true });
+    return (async () => {
+      try {
+        let query = supabase
+          .from('messages')
+          .select('*')
+          .eq('conversation_id', conversationId);
 
-      if (error) {
-        console.warn('Error fetching messages:', error.message);
-        return messagesCache[conversationId] || [];
+        // Cursor-based pagination: load messages strictly older than the provided timestamp
+        if (beforeTimestamp) {
+          query = query.lt('created_at', beforeTimestamp);
+        }
+
+        // Always query descending to get the newest of the slice, up to the limit (24)
+        const { data, error } = await query
+          .order('created_at', { ascending: false })
+          .limit(limit);
+
+        if (error) {
+          console.warn('Error fetching messages:', error.message);
+          return beforeTimestamp ? [] : (messagesCache[conversationId] || []);
+        }
+
+        if (data && data.length > 0) {
+          // Reverse the descending slice back to chronological order (oldest -> newest)
+          const fetchedMessages = [...data].reverse().map((m: any) => ({
+            id: m.id,
+            conversation_id: m.conversation_id,
+            sender_type: m.sender_type,
+            content_type: m.content_type || 'text',
+            content_text: m.content_text,
+            media_url: m.media_url,
+            status: m.status === 'sent' ? 'delivered' : (m.status || 'delivered'),
+            created_at: m.created_at,
+            reply_to_message_id: m.reply_to_message_id,
+          }));
+
+          if (beforeTimestamp) {
+            // Older messages loaded: prepend to existing cache
+            const current = messagesCache[conversationId] || [];
+            const uniqueOlder = fetchedMessages.filter(
+              (older) => !current.some((c) => c.id === older.id)
+            );
+            messagesCache[conversationId] = [...uniqueOlder, ...current];
+            return fetchedMessages;
+          } else {
+            // Initial load of latest 24: preserve any pending optimistic messages
+            const existingPending = (messagesCache[conversationId] || []).filter(
+              (m) =>
+                m.id.startsWith('opt-') &&
+                !fetchedMessages.some(
+                  (f) => (f.content_text || '').trim() === (m.content_text || '').trim()
+                )
+            );
+            messagesCache[conversationId] = [...fetchedMessages, ...existingPending];
+            return messagesCache[conversationId];
+          }
+        }
+
+        return [];
+      } catch (err: any) {
+        console.warn('Fetch messages exception:', err?.message);
+        return beforeTimestamp ? [] : (messagesCache[conversationId] || []);
       }
-
-      if (data) {
-        const fetchedMessages = [...data].reverse().map((m: any) => ({
-          id: m.id,
-          conversation_id: m.conversation_id,
-          sender_type: m.sender_type,
-          content_type: m.content_type || 'text',
-          content_text: m.content_text,
-          media_url: m.media_url,
-          status: m.status === 'sent' ? 'delivered' : (m.status || 'delivered'),
-          created_at: m.created_at,
-          reply_to_message_id: m.reply_to_message_id,
-        }));
-
-        // Preserve any optimistic messages that haven't landed in Supabase yet
-        const existingPending = (messagesCache[conversationId] || []).filter(
-          (m) =>
-            m.id.startsWith('opt-') &&
-            !fetchedMessages.some(
-              (f) => (f.content_text || '').trim() === (m.content_text || '').trim()
-            )
-        );
-
-        messagesCache[conversationId] = [...fetchedMessages, ...existingPending];
-      }
-
-      return messagesCache[conversationId] || [];
-    } catch (err: any) {
-      console.warn('Fetch messages exception:', err?.message);
-      return messagesCache[conversationId] || [];
-    }
+    })();
   }
 
   private async refreshMessagesInBackground(conversationId: string) {
