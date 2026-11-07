@@ -30,16 +30,19 @@ import {
     AppleIcon,
 } from '../../components/AuthIcons';
 import { authService, supabase } from '../../services/supabase';
+import { verifyCurrentUserAccess } from '../../services/accessGuardService';
 import { API_CONFIG } from '../../config/api';
 
 interface LoginScreenProps {
     onNavigateRegister?: () => void;
     onLoginSuccess?: (email: string) => void;
+    onLoginRestricted?: (email: string, reason: string, expiryDate?: string | null, status?: string) => void;
     onForgotPassword?: () => void;
 }
 
 export const LoginScreen: React.FC<LoginScreenProps> = ({
     onLoginSuccess,
+    onLoginRestricted,
 }) => {
     const [isSignUpMode, setIsSignUpMode] = useState(false);
     const [fullName, setFullName] = useState('');
@@ -139,6 +142,13 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
                 );
             } else {
                 await authService.signIn(cleanEmail, password);
+                const access = await verifyCurrentUserAccess();
+                if (!access.isAllowed) {
+                    if (onLoginRestricted) {
+                        onLoginRestricted(cleanEmail, access.reason || 'inactive', access.expiryDate, access.status);
+                        return;
+                    }
+                }
                 if (onLoginSuccess) {
                     onLoginSuccess(cleanEmail);
                 }

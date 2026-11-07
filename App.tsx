@@ -22,6 +22,7 @@ import { NotificationsScreen } from './src/screens/NotificationsScreen/Notificat
 import { BroadcastScreen } from './src/screens/BroadcastScreen/BroadcastScreen';
 import { MoreScreen } from './src/screens/MoreScreen/MoreScreen';
 import { authService } from './src/services/supabase';
+import { verifyCurrentUserAccess } from './src/services/accessGuardService';
 
 // Enable native hardware screens for optimal memory & 60fps performance
 enableScreens();
@@ -31,7 +32,14 @@ export type RootStackParamList = {
   Welcome: undefined;
   Login: undefined;
   SignUp: undefined;
-  Onboarding: { email?: string } | undefined;
+  Onboarding:
+    | {
+        email?: string;
+        reason?: string;
+        expiryDate?: string | null;
+        status?: string;
+      }
+    | undefined;
   Dashboard: undefined;
   Inbox: undefined;
   Chat: { participant?: ChatParticipant } | undefined;
@@ -60,7 +68,20 @@ function SplashScreenWrapper({ navigation }: NativeStackScreenProps<RootStackPar
         const session = await authService.getSession();
         if (isMounted) {
           if (session?.user) {
-            navigation.replace('Inbox');
+            // Strict fail-closed subscription & status access check
+            const access = await verifyCurrentUserAccess();
+            if (isMounted) {
+              if (access.isAllowed) {
+                navigation.replace('Inbox');
+              } else {
+                navigation.replace('Onboarding', {
+                  email: session.user.email || '',
+                  reason: access.reason || 'inactive',
+                  expiryDate: access.expiryDate,
+                  status: access.status,
+                });
+              }
+            }
           } else {
             navigation.replace('Welcome');
           }
@@ -99,6 +120,9 @@ function LoginScreenWrapper({ navigation }: NativeStackScreenProps<RootStackPara
       onLoginSuccess={(email) => {
         navigation.replace('Inbox');
       }}
+      onLoginRestricted={(email, reason, expiryDate, status) => {
+        navigation.replace('Onboarding', { email, reason, expiryDate, status });
+      }}
     />
   );
 }
@@ -107,7 +131,9 @@ function SignUpScreenWrapper({ navigation }: NativeStackScreenProps<RootStackPar
   return (
     <SignUpScreen
       onNavigateLogin={() => navigation.navigate('Login')}
-      onSignUpSuccess={(email) => navigation.navigate('Onboarding', { email })}
+      onSignUpSuccess={(email) =>
+        navigation.navigate('Onboarding', { email, reason: 'inactive', status: 'inactive' })
+      }
     />
   );
 }
@@ -116,6 +142,9 @@ function OnboardingScreenWrapper({ navigation, route }: NativeStackScreenProps<R
   return (
     <OnboardingScreen
       email={route.params?.email || ''}
+      reason={route.params?.reason || 'inactive'}
+      expiryDate={route.params?.expiryDate || null}
+      status={route.params?.status || 'inactive'}
       onAccessGranted={() => navigation.replace('Inbox')}
       onLogout={async () => {
         await authService.signOut();

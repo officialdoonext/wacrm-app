@@ -44,6 +44,7 @@ export interface UserProfile {
   email: string;
   avatar_url?: string;
   status: 'active' | 'inactive';
+  expiry_date?: string | null;
 }
 
 class AuthService {
@@ -97,7 +98,8 @@ class AuthService {
       account_role: 'owner',
       full_name: user.user_metadata?.full_name || user.email?.split('@')[0] || 'Agent',
       email: user.email || '',
-      status: 'active',
+      status: (user.user_metadata?.status as 'active' | 'inactive') || 'inactive',
+      expiry_date: user.user_metadata?.expiry_date || null,
     };
   }
 

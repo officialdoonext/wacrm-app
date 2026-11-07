@@ -8,10 +8,11 @@ import {
     StatusBar,
     ScrollView,
     ActivityIndicator,
-    Modal,
     TextInput,
     Alert,
+    Platform,
 } from 'react-native';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Svg, { Path } from 'react-native-svg';
 import { styles } from './styles';
@@ -469,7 +470,13 @@ export const BroadcastScreen: React.FC<BroadcastScreenProps> = ({ onNavigateTab 
 
             {/* Smooth Modal: 4-Step Broadcast Creation Wizard (Module 2.6.2) */}
             <SmoothModal visible={createModalVisible} onClose={() => setCreateModalVisible(false)} maxHeight="90%">
-                {/* Wizard Step Progress Tracker */}
+                <KeyboardAwareScrollView
+                    enableOnAndroid={true}
+                    extraScrollHeight={Platform.select({ ios: 20, android: 40 })}
+                    keyboardShouldPersistTaps="handled"
+                    enableAutomaticScroll={true}
+                    showsVerticalScrollIndicator={false}>
+                    {/* Wizard Step Progress Tracker */}
                 <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
                     {[
                         { step: 1, label: 'Template' },
@@ -771,6 +778,7 @@ export const BroadcastScreen: React.FC<BroadcastScreenProps> = ({ onNavigateTab 
                         </View>
                     </View>
                 )}
+                </KeyboardAwareScrollView>
             </SmoothModal>
         </SafeAreaView>
     );
