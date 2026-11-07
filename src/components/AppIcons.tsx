@@ -351,3 +351,44 @@ export const IconKey: React.FC<IconProps> = ({ size = 20, color = '#64748B' }) =
         />
     </Svg>
 );
+
+export const IconBranch: React.FC<IconProps> = ({ size = 20, color = '#D97706' }) => (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+        <Circle cx="18" cy="6" r="3" stroke={color} strokeWidth="2" />
+        <Circle cx="6" cy="18" r="3" stroke={color} strokeWidth="2" />
+        <Circle cx="18" cy="18" r="3" stroke={color} strokeWidth="2" />
+        <Path d="M6 15V9a6 6 0 0 1 6-6h3M12 9a6 6 0 0 1 6 6" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    </Svg>
+);
+
+export const IconCopy: React.FC<IconProps> = ({ size = 18, color = '#64748B' }) => (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+        <Rect x="9" y="9" width="13" height="13" rx="2" stroke={color} strokeWidth="2" />
+        <Path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    </Svg>
+);
+
+export const IconList: React.FC<IconProps> = ({ size = 18, color = '#059669' }) => (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+        <Path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    </Svg>
+);
+
+export const IconWebhook: React.FC<IconProps> = ({ size = 18, color = '#2563EB' }) => (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+        <Path d="M18 16.98h-5.99c-1.1 0-1.95.94-2.48 1.9A4 4 0 0 1 2 17c0-2.21 1.79-4 4-4h5.5M6 7.02h5.99c1.1 0 1.95-.94 2.48-1.9A4 4 0 0 1 22 7c0 2.21-1.79 4-4 4h-5.5" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    </Svg>
+);
+
+export const IconBriefcase: React.FC<IconProps> = ({ size = 18, color = '#059669' }) => (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+        <Rect x="2" y="7" width="20" height="14" rx="2" stroke={color} strokeWidth="2" />
+        <Path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2M2 13h20" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    </Svg>
+);
+
+export const IconPencil: React.FC<IconProps> = ({ size = 16, color = '#64748B' }) => (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+        <Path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    </Svg>
+);

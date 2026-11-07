@@ -8,7 +8,6 @@ import {
     StatusBar,
     StyleSheet,
     ActivityIndicator,
-    Modal,
     Alert,
     Image,
     TextInput,

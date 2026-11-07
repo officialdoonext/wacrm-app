@@ -7,7 +7,6 @@ import {
     StatusBar,
     StyleSheet,
     Dimensions,
-    Modal,
     TextInput,
     Alert,
     ActivityIndicator,

@@ -7,7 +7,6 @@ import {
     Image,
     StatusBar,
     Alert,
-    Modal,
     TextInput,
     ActivityIndicator,
     StyleSheet,

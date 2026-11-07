@@ -6,7 +6,6 @@ import {
     ScrollView,
     StatusBar,
     StyleSheet,
-    Modal,
     TextInput,
     Alert,
 } from 'react-native';
