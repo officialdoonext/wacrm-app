@@ -110,7 +110,7 @@ export const SignUpScreen: React.FC<SignUpScreenProps> = ({
                     enableAutomaticScroll={true}
                     showsVerticalScrollIndicator={false}
                     contentContainerStyle={styles.scrollContent}>
-                        <Text style={styles.headingTitle}>Get Started with WACRM</Text>
+                        <Text style={styles.headingTitle}>Get Started with menext</Text>
                         <Text style={styles.headingSubtitle}>
                             Create your official Meta WhatsApp Business multi-agent CRM workspace.
                         </Text>

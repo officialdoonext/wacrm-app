@@ -520,7 +520,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
                     <View style={styles.createAccountCard}>
                         <View style={styles.cardLeft}>
                             <Text style={styles.cardSubHeader}>
-                                {isSignUpMode ? 'Already have an account?' : 'New to WhatsApp CRM?'}
+                                {isSignUpMode ? 'Already have an account?' : 'New to menext?'}
                             </Text>
                             <Text style={styles.cardTitle}>
                                 {isSignUpMode ? 'Sign In Now' : 'Create Workspace'}

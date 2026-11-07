@@ -52,7 +52,11 @@ export const SplashScreen: React.FC<SplashScreenProps> = ({ onFinish }) => {
                         },
                     ]}>
                     <View style={styles.logoCard}>
-                        <BrandLogo width={SCREEN_WIDTH * 0.65} height={90} resizeMode="contain" />
+                        <BrandLogo size={110} variant="full" />
+                        <Text style={{ fontSize: 28, fontWeight: '900', marginTop: 14, letterSpacing: -0.6 }}>
+                            <Text style={{ color: '#002B49' }}>me</Text>
+                            <Text style={{ color: '#00A859' }}>next</Text>
+                        </Text>
                     </View>
 
                     <Text style={styles.tagline}>Automate. Engage. Grow.</Text>
