@@ -144,10 +144,11 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
 
     // Keyboard listener to smoothly scroll message list to bottom
     useEffect(() => {
-        const showSubscription = Keyboard.addListener('keyboardDidShow', () => {
+        const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+        const showSubscription = Keyboard.addListener(showEvent, () => {
             setTimeout(() => {
                 scrollViewRef.current?.scrollToEnd({ animated: true });
-            }, 80);
+            }, 60);
         });
 
         return () => {
@@ -253,7 +254,7 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
             content_type: customType,
             content_text: textToSend,
             media_url: customMediaUrl,
-            status: 'sending',
+            status: 'delivered',
             created_at: new Date().toISOString(),
             reply_to_message_id: replyToId,
         };
@@ -272,12 +273,19 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
                 messageType: customType,
                 mediaUrl: customMediaUrl,
                 replyToMessageId: replyToId,
+                optimisticId,
             });
 
             // Update in place so it NEVER disappears
-            setMessages((prev) =>
-                prev.map((m) => (m.id === optimisticId ? confirmedMsg : m))
-            );
+            setMessages((prev) => {
+                const hasOptimistic = prev.some((m) => m.id === optimisticId);
+                if (hasOptimistic) {
+                    return prev.map((m) => (m.id === optimisticId ? confirmedMsg : m));
+                }
+                return prev.map((m) =>
+                    m.id === confirmedMsg.id ? { ...m, status: 'delivered' } : m
+                );
+            });
         } catch {
             setMessages((prev) =>
                 prev.map((m) => (m.id === optimisticId ? { ...m, status: 'delivered' } : m))

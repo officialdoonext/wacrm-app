@@ -121,9 +121,6 @@ export const InboxScreen: React.FC<InboxScreenProps> = ({
 
     // Load dynamic conversations from Supabase
     const loadConversations = useCallback(async (force = false) => {
-        if (!force && conversations.length === 0) {
-            setIsLoading(true);
-        }
         try {
             const data = await crmService.fetchConversations(force);
             setConversations(data);
@@ -133,14 +130,15 @@ export const InboxScreen: React.FC<InboxScreenProps> = ({
             setIsLoading(false);
             setRefreshing(false);
         }
-    }, [conversations.length]);
+    }, []);
 
     useEffect(() => {
+        setIsLoading(true);
         loadConversations();
 
         // Subscribe to live Supabase Realtime channel
         const unsubscribe = crmService.subscribeToLiveInbox(() => {
-            crmService.fetchConversations().then(setConversations);
+            crmService.fetchConversations(true).then(setConversations);
         });
 
         return () => {

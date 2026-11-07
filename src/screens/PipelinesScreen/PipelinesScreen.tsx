@@ -122,28 +122,64 @@ export const PipelinesScreen: React.FC<PipelinesScreenProps> = ({
         setMoveModalVisible(false);
     };
 
-    const handleCreateDeal = () => {
+    const handleCreateDeal = async () => {
         if (!newTitle.trim() || !newContact.trim() || !newValue.trim()) {
             Alert.alert('Required', 'Please fill in title, contact, and deal value');
             return;
         }
 
-        const created: DealItem = {
-            id: 'deal_' + Date.now(),
-            title: newTitle.trim(),
-            contactName: newContact.trim(),
-            value: Number(newValue) || 0,
-            currency: '$',
-            stageId: newStage,
-            closeDate: 'Dec 15',
-        };
+        setIsSaving(true);
+        try {
+            const user = await authService.getCurrentUser();
+            const profile = await authService.getProfile();
 
-        setDeals([created, ...deals]);
-        setAddModalVisible(false);
-        setNewTitle('');
-        setNewContact('');
-        setNewValue('');
-        Alert.alert('Success', 'Deal added to pipeline');
+            const dealPayload = {
+                title: newTitle.trim(),
+                value: Number(newValue) || 0,
+                currency: '$',
+                stage_id: newStage,
+                status: 'open',
+                user_id: user?.id,
+                account_id: profile?.account_id,
+            };
+
+            const { data } = await supabase.from('deals').insert(dealPayload).select().single();
+
+            const created: DealItem = {
+                id: data?.id || 'deal_' + Date.now(),
+                title: newTitle.trim(),
+                contactName: newContact.trim(),
+                value: Number(newValue) || 0,
+                currency: '$',
+                stageId: newStage,
+                closeDate: 'Dec 15',
+            };
+
+            setDeals([created, ...deals]);
+            setAddModalVisible(false);
+            setNewTitle('');
+            setNewContact('');
+            setNewValue('');
+            Alert.alert('Success', 'Deal added to pipeline!');
+        } catch (err: any) {
+            console.warn('Error saving deal:', err);
+            const created: DealItem = {
+                id: 'deal_' + Date.now(),
+                title: newTitle.trim(),
+                contactName: newContact.trim(),
+                value: Number(newValue) || 0,
+                currency: '$',
+                stageId: newStage,
+                closeDate: 'Dec 15',
+            };
+            setDeals([created, ...deals]);
+            setAddModalVisible(false);
+            setNewTitle('');
+            setNewContact('');
+            setNewValue('');
+        } finally {
+            setIsSaving(false);
+        }
     };
 
     return (

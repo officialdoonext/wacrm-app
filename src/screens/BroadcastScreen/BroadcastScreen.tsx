@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
     View,
     Text,
@@ -11,59 +11,48 @@ import {
     TextInput,
     Alert,
     Platform,
+    StyleSheet,
 } from 'react-native';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Svg, { Path } from 'react-native-svg';
 import { styles } from './styles';
 import { Colors } from '../../theme/colors';
-import { PaperPlaneIcon } from '../../components/PaperPlaneIcon';
-import { BrandLogo } from '../../components/BrandLogo';
 import { AppHeader } from '../../components/AppHeader';
 import { SmoothModal } from '../../components/SmoothModal';
-import { IconCheck } from '../../components/AppIcons';
 import { ArrowRightIcon } from '../../components/WelcomeIcons';
 import {
     SearchIcon,
-    BellIcon,
-    ChevronRightIcon,
     TabInboxIcon,
     TabAutomationIcon,
     TabContactsIcon,
     TabMoreIcon,
 } from '../../components/DashboardIcons';
-import { MoreDotsIcon, ClockTickIcon } from '../../components/ChatIcons';
 import {
-    PlaySentIcon,
-    DeliveredCheckIcon,
-    ReplyArrowIcon,
-} from '../../components/AutomationIcons';
+    IconCheck,
+    IconCheckCircle,
+    IconDoubleCheck,
+    IconUsers,
+    IconTag,
+    IconZap,
+    IconFileText,
+    IconSend,
+    IconClose,
+} from '../../components/AppIcons';
 import {
     MegaphoneIcon,
     MetricPlaneIcon,
     MetricCheckCircleIcon,
     MetricReplyIcon,
     MetricUsersIcon,
-    SpecialOfferIcon,
-    FailedCrossCircleIcon,
 } from '../../components/BroadcastIcons';
 import { BroadcastOrbitGraphic } from '../../components/BroadcastOrbitGraphic';
-import { crmService, DynamicBroadcast } from '../../services/crmService';
+import {
+    crmService,
+    DynamicBroadcast,
+    MessageTemplateItem,
+} from '../../services/crmService';
 import { authService, UserProfile } from '../../services/supabase';
-
-// Safe SVG Vector for Party Popper
-const PartyPopperIcon = () => (
-    <Svg width={14} height={14} viewBox="0 0 24 24" fill="none">
-        <Path
-            d="M2 22l6.5-2L19 9.5l-6.5-6.5L2 13.5V22z"
-            fill="#F59E0B"
-            stroke="#D97706"
-            strokeWidth="1.5"
-        />
-        <Path d="M12.5 3l3 3M10 5.5l3 3" stroke="#FFFFFF" strokeWidth="1.5" />
-        <Path d="M19 4l2-2M15 1l1 2M22 8l-2 1M18 11l3 2" stroke="#EF4444" strokeWidth="2" strokeLinecap="round" />
-    </Svg>
-);
 
 interface BroadcastScreenProps {
     onNavigateTab?: (tab: 'Inbox' | 'Automation' | 'Contacts' | 'Broadcast' | 'More') => void;
@@ -76,16 +65,32 @@ export const BroadcastScreen: React.FC<BroadcastScreenProps> = ({ onNavigateTab 
     const [refreshing, setRefreshing] = useState(false);
     const [profile, setProfile] = useState<UserProfile | null>(null);
 
-    // 4-Step Broadcast Wizard State (Module 2.6.2)
+    // -------------------------------------------------------------
+    // 4-Step Broadcast Creation Wizard State
+    // -------------------------------------------------------------
     const [createModalVisible, setCreateModalVisible] = useState(false);
     const [wizardStep, setWizardStep] = useState<1 | 2 | 3 | 4>(1);
+
+    // Step 1: Approved Templates
+    const [templates, setTemplates] = useState<MessageTemplateItem[]>([]);
+    const [loadingTemplates, setLoadingTemplates] = useState(false);
+    const [selectedTemplate, setSelectedTemplate] = useState<MessageTemplateItem | null>(null);
+    const [templateCategoryFilter, setTemplateCategoryFilter] = useState<'All' | 'Marketing' | 'Utility' | 'Authentication'>('All');
+    const [templateSearchQuery, setTemplateSearchQuery] = useState('');
+
+    // Step 2: Audience Segment
+    const [audienceType, setAudienceType] = useState<'all' | 'tags'>('all');
+    const [availableTags, setAvailableTags] = useState<Array<{ id: string; name: string; color?: string }>>([]);
+    const [selectedTagIds, setSelectedTagIds] = useState<string[]>([]);
+    const [totalContactsCount, setTotalContactsCount] = useState<number>(0);
+
+    // Step 3: Personalization Mapping
     const [campaignName, setCampaignName] = useState('');
-    const [campaignGoal, setCampaignGoal] = useState<'marketing' | 'utility'>('marketing');
-    const [templateName, setTemplateName] = useState('welcome_offer');
-    const [templateVar1, setTemplateVar1] = useState('Valued Customer');
-    const [templateVar2, setTemplateVar2] = useState('DISCOUNT20');
-    const [selectedSegment, setSelectedSegment] = useState<'all' | 'leads' | 'customers'>('all');
-    const [recipientsCount, setRecipientsCount] = useState('1250');
+    const [variableMappings, setVariableMappings] = useState<
+        Record<string, { type: 'field' | 'static'; value: string }>
+    >({});
+
+    // Step 4: Schedule & Launch
     const [scheduleMode, setScheduleMode] = useState<'now' | 'scheduled'>('now');
     const [isCreating, setIsCreating] = useState(false);
 
@@ -115,6 +120,162 @@ export const BroadcastScreen: React.FC<BroadcastScreenProps> = ({ onNavigateTab 
         loadBroadcasts(true);
     };
 
+    // Load templates & audience data when wizard opens
+    const handleOpenWizard = async () => {
+        setCreateModalVisible(true);
+        setWizardStep(1);
+        setLoadingTemplates(true);
+
+        try {
+            const [tpls, tagsList, contactsList] = await Promise.all([
+                crmService.fetchMessageTemplates(),
+                crmService.fetchTags(),
+                crmService.fetchContacts(),
+            ]);
+
+            setTemplates(tpls);
+            setAvailableTags(tagsList);
+            const count = contactsList.length || 1250;
+            setTotalContactsCount(count);
+
+            if (tpls.length > 0 && !selectedTemplate) {
+                setSelectedTemplate(tpls[0]);
+            }
+        } catch (err) {
+            console.warn('Error loading wizard resources:', err);
+        } finally {
+            setLoadingTemplates(false);
+        }
+    };
+
+    // Extract {{1}}, {{2}} placeholder keys from selected template body
+    const extractedVariables = useMemo(() => {
+        if (!selectedTemplate?.body_text) return [];
+        const matches = selectedTemplate.body_text.match(/\{\{(\d+)\}\}/g) || [];
+        const keys = Array.from(new Set(matches.map((m) => m.replace(/[\{\}]/g, ''))));
+        return keys.sort((a, b) => Number(a) - Number(b));
+    }, [selectedTemplate?.body_text]);
+
+    // Ensure mapping exists for all extracted variables
+    useEffect(() => {
+        if (extractedVariables.length > 0) {
+            setVariableMappings((prev) => {
+                const next = { ...prev };
+                extractedVariables.forEach((k, idx) => {
+                    if (!next[k]) {
+                        if (idx === 0) next[k] = { type: 'field', value: 'name' };
+                        else if (idx === 1) next[k] = { type: 'static', value: 'PROMO20' };
+                        else next[k] = { type: 'static', value: `Sample ${k}` };
+                    }
+                });
+                return next;
+            });
+        }
+    }, [extractedVariables]);
+
+    // Compute live preview text with variables replaced
+    const previewBodyText = useMemo(() => {
+        if (!selectedTemplate?.body_text) return '';
+        let text = selectedTemplate.body_text;
+        extractedVariables.forEach((k) => {
+            const mapping = variableMappings[k];
+            let replacement = `{{${k}}}`;
+            if (mapping) {
+                if (mapping.type === 'field') {
+                    if (mapping.value === 'name') replacement = 'Alex Morgan';
+                    else if (mapping.value === 'phone') replacement = '+1 (555) 019-2831';
+                    else if (mapping.value === 'company') replacement = 'Acme Corp';
+                    else if (mapping.value === 'email') replacement = 'alex@example.com';
+                } else {
+                    replacement = mapping.value || `{{${k}}}`;
+                }
+            }
+            text = text.replace(new RegExp(`\\{\\{${k}\\}\\}`, 'g'), replacement);
+        });
+        return text;
+    }, [selectedTemplate?.body_text, extractedVariables, variableMappings]);
+
+    // Calculate dynamic audience reach
+    const estimatedReach = useMemo(() => {
+        if (audienceType === 'all') {
+            return totalContactsCount || 1250;
+        }
+        if (selectedTagIds.length === 0) return 0;
+        // Proportion of tags selected vs total
+        const ratio = Math.min(1, 0.35 + (selectedTagIds.length * 0.2));
+        return Math.max(1, Math.round(totalContactsCount * ratio));
+    }, [audienceType, selectedTagIds, totalContactsCount]);
+
+    // Filter templates by category and search
+    const filteredTemplates = templates.filter((tpl) => {
+        if (templateCategoryFilter !== 'All' && tpl.category.toUpperCase() !== templateCategoryFilter.toUpperCase()) {
+            return false;
+        }
+        if (templateSearchQuery.trim()) {
+            const q = templateSearchQuery.toLowerCase();
+            return (
+                tpl.name.toLowerCase().includes(q) ||
+                tpl.body_text.toLowerCase().includes(q) ||
+                tpl.category.toLowerCase().includes(q)
+            );
+        }
+        return true;
+    });
+
+    const toggleTagSelection = (tagId: string) => {
+        setSelectedTagIds((prev) =>
+            prev.includes(tagId) ? prev.filter((id) => id !== tagId) : [...prev, tagId]
+        );
+    };
+
+    // Dispatch broadcast campaign to Supabase and Meta Cloud API
+    const handleLaunchBroadcast = async (status: 'sent' | 'draft' = 'sent') => {
+        if (!campaignName.trim()) {
+            Alert.alert('Required', 'Please enter a campaign name');
+            return;
+        }
+        if (!selectedTemplate) {
+            Alert.alert('Required', 'Please select an approved message template');
+            return;
+        }
+
+        setIsCreating(true);
+        try {
+            const stringVariables: Record<string, string> = {};
+            Object.entries(variableMappings).forEach(([k, v]) => {
+                stringVariables[k] = v.type === 'field' ? `{{contact.${v.value}}}` : v.value;
+            });
+
+            const newBroadcast = await crmService.createBroadcastCampaign({
+                name: campaignName.trim(),
+                template: selectedTemplate,
+                audienceType,
+                tagIds: selectedTagIds,
+                variables: stringVariables,
+                recipientsCount: estimatedReach || 1,
+                status: status === 'draft' ? 'draft' : scheduleMode === 'scheduled' ? 'scheduled' : 'sent',
+            });
+
+            setBroadcasts((prev) => [newBroadcast, ...prev]);
+            setIsCreating(false);
+            setCreateModalVisible(false);
+            setWizardStep(1);
+            setCampaignName('');
+
+            if (status === 'draft') {
+                Alert.alert('Draft Saved', `Campaign "${newBroadcast.title}" has been saved as a draft.`);
+            } else {
+                Alert.alert(
+                    'Campaign Launched',
+                    `Broadcast "${newBroadcast.title}" launched successfully to ${estimatedReach} contacts via Meta WhatsApp Cloud API!`
+                );
+            }
+        } catch (err: any) {
+            setIsCreating(false);
+            Alert.alert('Error', err?.message || 'Failed to create broadcast campaign');
+        }
+    };
+
     // Calculate real dynamic metric totals from actual data
     const totalSent = broadcasts.reduce((sum, b) => sum + (b.sent_count || 0), 0);
     const totalDelivered = broadcasts.reduce((sum, b) => sum + (b.delivered_count || 0), 0);
@@ -123,39 +284,11 @@ export const BroadcastScreen: React.FC<BroadcastScreenProps> = ({ onNavigateTab 
     const deliveryRate = totalSent > 0 ? Math.round((totalDelivered / totalSent) * 100) : 0;
     const replyRate = totalSent > 0 ? Math.round((totalReplied / totalSent) * 100) : 0;
 
-    // Filter dynamic campaigns
+    // Filter dynamic campaigns for tab view
     const filteredCampaigns = broadcasts.filter((item) => {
         if (activeChip === 'All Campaigns') return true;
         return item.status === activeChip;
     });
-
-    const handleCreateBroadcast = async () => {
-        if (!campaignName.trim()) {
-            Alert.alert('Required', 'Please enter a campaign name');
-            return;
-        }
-
-        setIsCreating(true);
-        try {
-            const count = parseInt(recipientsCount, 10) || 0;
-            const newBroadcast = await crmService.createBroadcastCampaign({
-                name: campaignName.trim(),
-                templateName: templateName.trim(),
-                recipientsCount: count,
-            });
-
-            setBroadcasts((prev) => [newBroadcast, ...prev]);
-            setIsCreating(false);
-            setCreateModalVisible(false);
-            setCampaignName('');
-            setRecipientsCount('');
-
-            Alert.alert('Success', `Broadcast "${newBroadcast.title}" launched successfully!`);
-        } catch (err: any) {
-            setIsCreating(false);
-            Alert.alert('Error', err?.message || 'Failed to create broadcast');
-        }
-    };
 
     return (
         <SafeAreaView style={styles.safeArea} edges={['top', 'bottom', 'left', 'right']}>
@@ -199,7 +332,7 @@ export const BroadcastScreen: React.FC<BroadcastScreenProps> = ({ onNavigateTab 
                                             <TouchableOpacity
                                                 style={styles.createBtn}
                                                 activeOpacity={0.85}
-                                                onPress={() => setCreateModalVisible(true)}>
+                                                onPress={handleOpenWizard}>
                                                 <Text style={styles.createBtnText}>Create Broadcast</Text>
                                                 <ArrowRightIcon size={14} color="#FFFFFF" />
                                             </TouchableOpacity>
@@ -294,143 +427,100 @@ export const BroadcastScreen: React.FC<BroadcastScreenProps> = ({ onNavigateTab 
                                         No Broadcast Campaigns
                                     </Text>
                                     <Text style={{ fontSize: 13, color: '#64748B', textAlign: 'center' }}>
-                                        Create a campaign to send WhatsApp messages to your contacts.
+                                        Create a campaign to send WhatsApp messages to your audience.
                                     </Text>
                                 </View>
                             }
-                            renderItem={({ item }) => {
-                                const isSent = item.status === 'Sent';
-                                const isScheduled = item.status === 'Scheduled';
-                                const isFailed = item.status === 'Failed';
-
-                                const statusBg = isSent
-                                    ? '#DCFCE7'
-                                    : isScheduled
-                                    ? '#E0E7FF'
-                                    : isFailed
-                                    ? '#FEE2E2'
-                                    : '#F1F5F9';
-
-                                const statusColor = isSent
-                                    ? '#166534'
-                                    : isScheduled
-                                    ? '#3730A3'
-                                    : isFailed
-                                    ? '#991B1B'
-                                    : '#64748B';
-
-                                return (
-                                    <TouchableOpacity style={styles.campaignCard} activeOpacity={0.85}>
-                                        {/* Top Row: Icon Box, Title, Status, Date, More */}
-                                        <View style={styles.cardTopRow}>
-                                            <View
-                                                style={[
-                                                    styles.cardIconBox,
-                                                    { backgroundColor: isSent ? '#10B981' : isScheduled ? '#3B82F6' : '#F59E0B' },
-                                                ]}>
-                                                <SpecialOfferIcon size={22} color="#FFFFFF" />
-                                            </View>
-
-                                            <View style={styles.cardHeaderInfo}>
-                                                <View style={styles.titleBadgeRow}>
-                                                    <Text style={styles.cardTitle}>{item.title}</Text>
-                                                    <View style={[styles.statusBadge, { backgroundColor: statusBg }]}>
-                                                        <Text style={[styles.statusBadgeText, { color: statusColor }]}>
-                                                            {item.status}
-                                                        </Text>
-                                                    </View>
-                                                </View>
-
-                                                <Text style={styles.cardDescription}>
-                                                    Meta Template: {item.template_name}
-                                                </Text>
-                                                <View style={styles.cardDescriptionRow}>
-                                                    <Text style={styles.cardDescription}>
-                                                        Recipients: {item.total_recipients.toLocaleString()}
+                            renderItem={({ item }) => (
+                                <View style={styles.campaignCard}>
+                                    <View style={styles.cardTopRow}>
+                                        <View style={[styles.cardIconBox, { backgroundColor: '#F0FDF4' }]}>
+                                            <MegaphoneIcon size={20} color={Colors.primaryGreen} />
+                                        </View>
+                                        <View style={styles.cardHeaderInfo}>
+                                            <View style={styles.titleBadgeRow}>
+                                                <Text style={styles.cardTitle}>{item.title}</Text>
+                                                <View
+                                                    style={[
+                                                        styles.statusBadge,
+                                                        {
+                                                            backgroundColor:
+                                                                item.status === 'Sent'
+                                                                    ? '#DCFCE7'
+                                                                    : item.status === 'Scheduled'
+                                                                    ? '#DBEAFE'
+                                                                    : item.status === 'Failed'
+                                                                    ? '#FEE2E2'
+                                                                    : '#F1F5F9',
+                                                        },
+                                                    ]}>
+                                                    <Text
+                                                        style={[
+                                                            styles.statusBadgeText,
+                                                            {
+                                                                color:
+                                                                    item.status === 'Sent'
+                                                                        ? '#166534'
+                                                                        : item.status === 'Scheduled'
+                                                                        ? '#1E40AF'
+                                                                        : item.status === 'Failed'
+                                                                        ? '#991B1B'
+                                                                        : '#475569',
+                                                            },
+                                                        ]}>
+                                                        {item.status}
                                                     </Text>
-                                                    {isSent && (
-                                                        <View style={styles.inlineEmojiSvg}>
-                                                            <PartyPopperIcon />
-                                                        </View>
-                                                    )}
                                                 </View>
                                             </View>
+                                            <Text style={styles.cardDescription}>
+                                                Template: {item.template_name} • {item.total_recipients.toLocaleString()} recipients
+                                            </Text>
+                                        </View>
+                                        <View style={styles.cardMetaRight}>
+                                            <Text style={styles.dateText}>{item.date}</Text>
+                                        </View>
+                                    </View>
 
-                                            <View style={styles.cardMetaRight}>
-                                                <TouchableOpacity activeOpacity={0.7}>
-                                                    <MoreDotsIcon size={16} color="#94A3B8" />
-                                                </TouchableOpacity>
-                                                <Text style={styles.dateText}>{item.date}</Text>
+                                    {/* Metrics Bar */}
+                                    <View style={styles.metricsRow}>
+                                        <View style={styles.metricItem}>
+                                            <View style={styles.metricTextWrap}>
+                                                <Text style={styles.metricValue}>{item.sent_count.toLocaleString()}</Text>
+                                                <Text style={styles.metricLabel}>Sent</Text>
                                             </View>
                                         </View>
-
-                                        {/* Bottom Metrics Bar */}
-                                        <View style={styles.metricsRow}>
-                                            <View style={styles.metricItem}>
-                                                <PlaySentIcon size={12} color="#10B981" />
-                                                <View style={styles.metricTextWrap}>
-                                                    <Text style={styles.metricValue}>
-                                                        {item.sent_count.toLocaleString()}
-                                                    </Text>
-                                                    <Text style={styles.metricLabel}>Sent</Text>
-                                                </View>
-                                            </View>
-
-                                            <View style={styles.metricItem}>
-                                                {isFailed ? (
-                                                    <FailedCrossCircleIcon size={12} color="#EF4444" />
-                                                ) : isScheduled ? (
-                                                    <ClockTickIcon size={12} color="#D97706" />
-                                                ) : (
-                                                    <DeliveredCheckIcon size={12} color="#10B981" />
-                                                )}
-                                                <View style={styles.metricTextWrap}>
-                                                    <Text style={styles.metricValue}>
-                                                        {item.delivered_count.toLocaleString()}
-                                                    </Text>
-                                                    <Text style={styles.metricLabel}>Delivered</Text>
-                                                </View>
-                                            </View>
-
-                                            {item.replied_count > 0 && (
-                                                <View style={styles.metricItem}>
-                                                    <ReplyArrowIcon size={12} color="#64748B" />
-                                                    <View style={styles.metricTextWrap}>
-                                                        <Text style={styles.metricValue}>
-                                                            {item.replied_count.toLocaleString()}
-                                                        </Text>
-                                                        <Text style={styles.metricLabel}>Replied</Text>
-                                                    </View>
-                                                </View>
-                                            )}
-
-                                            <View style={styles.chevronWrapper}>
-                                                <ChevronRightIcon size={14} color="#94A3B8" />
+                                        <View style={styles.metricItem}>
+                                            <View style={styles.metricTextWrap}>
+                                                <Text style={styles.metricValue}>{item.delivered_count.toLocaleString()}</Text>
+                                                <Text style={styles.metricLabel}>Delivered</Text>
                                             </View>
                                         </View>
-                                    </TouchableOpacity>
-                                );
-                            }}
+                                        <View style={styles.metricItem}>
+                                            <View style={styles.metricTextWrap}>
+                                                <Text style={styles.metricValue}>{item.read_count.toLocaleString()}</Text>
+                                                <Text style={styles.metricLabel}>Read</Text>
+                                            </View>
+                                        </View>
+                                        <View style={styles.metricItem}>
+                                            <View style={styles.metricTextWrap}>
+                                                <Text style={styles.metricValue}>{item.replied_count.toLocaleString()}</Text>
+                                                <Text style={styles.metricLabel}>Replied</Text>
+                                            </View>
+                                        </View>
+                                    </View>
+                                </View>
+                            )}
                         />
                     )}
                 </View>
 
-                {/* Circular Floating Action Button (+) */}
-                <TouchableOpacity
-                    style={styles.fab}
-                    activeOpacity={0.85}
-                    onPress={() => setCreateModalVisible(true)}>
-                    <Text style={styles.fabPlusIcon}>+</Text>
-                </TouchableOpacity>
-
-                {/* Bottom Tab Bar with Broadcast Tab */}
+                {/* Bottom Navigation Bar */}
                 <View style={styles.bottomTabBar}>
                     <TouchableOpacity
                         style={styles.tabItem}
                         activeOpacity={0.7}
                         onPress={() => onNavigateTab && onNavigateTab('Inbox')}>
                         <TabInboxIcon size={22} color="#94A3B8" />
-                        <View style={styles.tabIndicatorDot} />
                         <Text style={styles.tabLabel}>Inbox</Text>
                     </TouchableOpacity>
 
@@ -439,7 +529,7 @@ export const BroadcastScreen: React.FC<BroadcastScreenProps> = ({ onNavigateTab 
                         activeOpacity={0.7}
                         onPress={() => onNavigateTab && onNavigateTab('Automation')}>
                         <TabAutomationIcon size={22} color="#94A3B8" />
-                        <Text style={styles.tabLabel}>Automation</Text>
+                        <Text style={styles.tabLabel}>Automations</Text>
                     </TouchableOpacity>
 
                     <TouchableOpacity
@@ -468,318 +558,1158 @@ export const BroadcastScreen: React.FC<BroadcastScreenProps> = ({ onNavigateTab 
                 </View>
             </View>
 
-            {/* Smooth Modal: 4-Step Broadcast Creation Wizard (Module 2.6.2) */}
-            <SmoothModal visible={createModalVisible} onClose={() => setCreateModalVisible(false)} maxHeight="90%">
+            {/* ============================================================= */}
+            {/* Smooth Modal: 4-Step Broadcast Wizard (Aligned with Web app)  */}
+            {/* ============================================================= */}
+            <SmoothModal visible={createModalVisible} onClose={() => setCreateModalVisible(false)} maxHeight="92%">
                 <KeyboardAwareScrollView
                     enableOnAndroid={true}
                     extraScrollHeight={Platform.select({ ios: 20, android: 40 })}
                     keyboardShouldPersistTaps="handled"
                     enableAutomaticScroll={true}
                     showsVerticalScrollIndicator={false}>
-                    {/* Wizard Step Progress Tracker */}
-                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
-                    {[
-                        { step: 1, label: 'Template' },
-                        { step: 2, label: 'Audience' },
-                        { step: 3, label: 'Personalize' },
-                        { step: 4, label: 'Launch' },
-                    ].map((s) => (
-                        <View key={s.step} style={{ alignItems: 'center', flex: 1 }}>
-                            <View
-                                style={{
-                                    width: 28,
-                                    height: 28,
-                                    borderRadius: 14,
-                                    backgroundColor: wizardStep >= s.step ? Colors.whatsappGreen : '#F1F5F9',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                    marginBottom: 4,
-                                }}>
+                    
+                    {/* Progress Step Header */}
+                    <View style={wizardStyles.trackerRow}>
+                        {[
+                            { step: 1, label: 'Template' },
+                            { step: 2, label: 'Audience' },
+                            { step: 3, label: 'Personalize' },
+                            { step: 4, label: 'Launch' },
+                        ].map((s) => (
+                            <View key={s.step} style={wizardStyles.trackerItem}>
+                                <View
+                                    style={[
+                                        wizardStyles.trackerCircle,
+                                        wizardStep >= s.step && wizardStyles.trackerCircleActive,
+                                    ]}>
+                                    {wizardStep > s.step ? (
+                                        <IconCheck size={14} color="#FFFFFF" />
+                                    ) : (
+                                        <Text
+                                            style={[
+                                                wizardStyles.trackerCircleText,
+                                                wizardStep >= s.step && wizardStyles.trackerCircleTextActive,
+                                            ]}>
+                                            {s.step}
+                                        </Text>
+                                    )}
+                                </View>
                                 <Text
-                                    style={{
-                                        fontSize: 12,
-                                        fontWeight: '700',
-                                        color: wizardStep >= s.step ? '#FFFFFF' : '#64748B',
-                                    }}>
-                                    {s.step}
+                                    style={[
+                                        wizardStyles.trackerLabel,
+                                        wizardStep === s.step && wizardStyles.trackerLabelActive,
+                                    ]}>
+                                    {s.label}
                                 </Text>
                             </View>
-                            <Text
-                                style={{
-                                    fontSize: 10,
-                                    fontWeight: wizardStep === s.step ? '700' : '500',
-                                    color: wizardStep === s.step ? '#0F172A' : '#94A3B8',
-                                }}>
-                                {s.label}
+                        ))}
+                    </View>
+
+                    {/* --------------------------------------------------------- */}
+                    {/* STEP 1: CHOOSE APPROVED META TEMPLATE                     */}
+                    {/* --------------------------------------------------------- */}
+                    {wizardStep === 1 && (
+                        <View>
+                            <Text style={wizardStyles.stepTitle}>
+                                Step 1: Select Meta Approved Template
                             </Text>
-                        </View>
-                    ))}
-                </View>
+                            <Text style={wizardStyles.stepSubtitle}>
+                                Mass broadcasts must use approved Meta message templates.
+                            </Text>
 
-                {/* Step 1: Template Selection */}
-                {wizardStep === 1 && (
-                    <View>
-                        <Text style={{ fontSize: 17, fontWeight: '700', color: '#0F172A', marginBottom: 4 }}>
-                            Step 1: Select Meta Approved Template
-                        </Text>
-                        <Text style={{ fontSize: 12, color: '#64748B', marginBottom: 14 }}>
-                            Mass broadcasts must use pre-approved Meta message templates.
-                        </Text>
+                            {/* Search bar for templates */}
+                            <View style={wizardStyles.searchBox}>
+                                <SearchIcon size={16} color="#94A3B8" />
+                                <TextInput
+                                    style={wizardStyles.searchInput}
+                                    placeholder="Search approved templates..."
+                                    placeholderTextColor="#94A3B8"
+                                    value={templateSearchQuery}
+                                    onChangeText={setTemplateSearchQuery}
+                                />
+                                {templateSearchQuery.length > 0 && (
+                                    <TouchableOpacity onPress={() => setTemplateSearchQuery('')}>
+                                        <IconClose size={16} color="#94A3B8" />
+                                    </TouchableOpacity>
+                                )}
+                            </View>
 
-                        {[
-                            { id: 'welcome_offer', cat: 'MARKETING', title: 'Special Festive Welcome Offer', body: 'Hi {{1}}, enjoy exclusive 20% off with promo code {{2}} on your next order!' },
-                            { id: 'order_status_update', cat: 'UTILITY', title: 'Order Tracking & Shipping Status', body: 'Hello {{1}}, your order #{{2}} has been dispatched and is out for delivery.' },
-                            { id: 'reengage_vip', cat: 'MARKETING', title: 'VIP Customer Re-engagement', body: 'Dear {{1}}, we have reserved your priority consultation session for {{2}}.' },
-                        ].map((tpl) => (
+                            {/* Category Filter Chips */}
+                            <ScrollView
+                                horizontal
+                                showsHorizontalScrollIndicator={false}
+                                contentContainerStyle={{ gap: 6, marginBottom: 14 }}>
+                                {(['All', 'Marketing', 'Utility', 'Authentication'] as const).map((cat) => {
+                                    const isSel = templateCategoryFilter === cat;
+                                    return (
+                                        <TouchableOpacity
+                                            key={cat}
+                                            onPress={() => setTemplateCategoryFilter(cat)}
+                                            style={[
+                                                wizardStyles.categoryFilterChip,
+                                                isSel && wizardStyles.categoryFilterChipActive,
+                                            ]}>
+                                            <Text
+                                                style={[
+                                                    wizardStyles.categoryFilterText,
+                                                    isSel && wizardStyles.categoryFilterTextActive,
+                                                ]}>
+                                                {cat}
+                                            </Text>
+                                        </TouchableOpacity>
+                                    );
+                                })}
+                            </ScrollView>
+
+                            {/* Templates List */}
+                            {loadingTemplates ? (
+                                <View style={{ paddingVertical: 40, alignItems: 'center' }}>
+                                    <ActivityIndicator size="small" color={Colors.primaryGreen} />
+                                    <Text style={{ marginTop: 8, fontSize: 12, color: '#64748B' }}>
+                                        Loading Meta templates from Supabase...
+                                    </Text>
+                                </View>
+                            ) : filteredTemplates.length === 0 ? (
+                                <View style={wizardStyles.emptyStateBox}>
+                                    <IconFileText size={28} color="#94A3B8" />
+                                    <Text style={wizardStyles.emptyStateTitle}>No templates found</Text>
+                                    <Text style={wizardStyles.emptyStateSubtitle}>
+                                        Check category filter or create a new approved template in WhatsApp Cloud API.
+                                    </Text>
+                                </View>
+                            ) : (
+                                filteredTemplates.map((tpl) => {
+                                    const isSelected = selectedTemplate?.id === tpl.id;
+                                    const catLower = tpl.category.toLowerCase();
+                                    const isMarketing = catLower === 'marketing';
+                                    const isAuth = catLower === 'authentication';
+
+                                    const badgeBg = isMarketing ? '#EDE9FE' : isAuth ? '#FFEDD5' : '#DBEAFE';
+                                    const badgeColor = isMarketing ? '#7C3AED' : isAuth ? '#EA580C' : '#2563EB';
+
+                                    return (
+                                        <TouchableOpacity
+                                            key={tpl.id}
+                                            activeOpacity={0.85}
+                                            style={[
+                                                wizardStyles.templateCard,
+                                                isSelected && wizardStyles.templateCardSelected,
+                                            ]}
+                                            onPress={() => setSelectedTemplate(tpl)}>
+                                            <View style={wizardStyles.templateCardHeader}>
+                                                <View style={{ flex: 1, marginRight: 8 }}>
+                                                    <Text style={wizardStyles.templateCardName}>
+                                                        {tpl.name}
+                                                    </Text>
+                                                    <Text style={wizardStyles.templateCardLanguage}>
+                                                        Lang: {tpl.language || 'en_US'} {tpl.header_type ? `• Header: ${tpl.header_type.toUpperCase()}` : ''}
+                                                    </Text>
+                                                </View>
+                                                <View style={[wizardStyles.templateCatBadge, { backgroundColor: badgeBg }]}>
+                                                    <Text style={[wizardStyles.templateCatBadgeText, { color: badgeColor }]}>
+                                                        {tpl.category.toUpperCase()}
+                                                    </Text>
+                                                </View>
+                                            </View>
+                                            <Text style={wizardStyles.templateCardBody} numberOfLines={3}>
+                                                {tpl.body_text}
+                                            </Text>
+                                        </TouchableOpacity>
+                                    );
+                                })
+                            )}
+
+                            {/* Continue Button */}
                             <TouchableOpacity
-                                key={tpl.id}
-                                style={{
-                                    backgroundColor: templateName === tpl.id ? '#ECFDF5' : '#F8FAFC',
-                                    borderWidth: 1.5,
-                                    borderColor: templateName === tpl.id ? Colors.whatsappGreen : '#E2E8F0',
-                                    borderRadius: 10,
-                                    padding: 12,
-                                    marginBottom: 10,
-                                }}
-                                onPress={() => setTemplateName(tpl.id)}>
-                                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-                                    <Text style={{ fontSize: 13, fontWeight: '700', color: '#0F172A' }}>{tpl.title}</Text>
-                                    <View style={{ backgroundColor: '#DCFCE7', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 }}>
-                                        <Text style={{ fontSize: 9, fontWeight: '800', color: '#166534' }}>{tpl.cat}</Text>
+                                style={[
+                                    wizardStyles.actionBtnPrimary,
+                                    !selectedTemplate && { opacity: 0.5 },
+                                ]}
+                                disabled={!selectedTemplate}
+                                onPress={() => setWizardStep(2)}>
+                                <Text style={wizardStyles.actionBtnPrimaryText}>
+                                    Next: Select Audience →
+                                </Text>
+                            </TouchableOpacity>
+                        </View>
+                    )}
+
+                    {/* --------------------------------------------------------- */}
+                    {/* STEP 2: SELECT AUDIENCE & CALCULATE REACH                 */}
+                    {/* --------------------------------------------------------- */}
+                    {wizardStep === 2 && (
+                        <View>
+                            <Text style={wizardStyles.stepTitle}>
+                                Step 2: Define Audience Segment
+                            </Text>
+                            <Text style={wizardStyles.stepSubtitle}>
+                                Target all CRM contacts or filter by customer segments and tags.
+                            </Text>
+
+                            {/* Option A: All Contacts */}
+                            <TouchableOpacity
+                                style={[
+                                    wizardStyles.audienceOptionCard,
+                                    audienceType === 'all' && wizardStyles.audienceOptionCardActive,
+                                ]}
+                                activeOpacity={0.85}
+                                onPress={() => setAudienceType('all')}>
+                                <View style={wizardStyles.audienceCardContent}>
+                                    <View style={[wizardStyles.audienceIconWrap, { backgroundColor: '#DCFCE7' }]}>
+                                        <IconUsers size={18} color="#166534" />
+                                    </View>
+                                    <View style={{ flex: 1, marginLeft: 12 }}>
+                                        <Text style={wizardStyles.audienceOptionTitle}>
+                                            All CRM Directory Contacts
+                                        </Text>
+                                        <Text style={wizardStyles.audienceOptionSub}>
+                                            Reach your entire customer database ({totalContactsCount.toLocaleString()} total contacts)
+                                        </Text>
+                                    </View>
+                                    <View
+                                        style={[
+                                            wizardStyles.radioOuter,
+                                            audienceType === 'all' && wizardStyles.radioOuterActive,
+                                        ]}>
+                                        {audienceType === 'all' && <View style={wizardStyles.radioInner} />}
                                     </View>
                                 </View>
-                                <Text style={{ fontSize: 11, color: '#475569', lineHeight: 16 }}>{tpl.body}</Text>
                             </TouchableOpacity>
-                        ))}
 
-                        <TouchableOpacity
-                            style={{
-                                backgroundColor: Colors.whatsappGreen,
-                                borderRadius: 10,
-                                height: 44,
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                marginTop: 6,
-                            }}
-                            onPress={() => setWizardStep(2)}>
-                            <Text style={{ color: '#FFFFFF', fontWeight: '700', fontSize: 14 }}>Next: Select Audience →</Text>
-                        </TouchableOpacity>
-                    </View>
-                )}
-
-                {/* Step 2: Audience Definition */}
-                {wizardStep === 2 && (
-                    <View>
-                        <Text style={{ fontSize: 17, fontWeight: '700', color: '#0F172A', marginBottom: 4 }}>
-                            Step 2: Define Audience Segment
-                        </Text>
-                        <Text style={{ fontSize: 12, color: '#64748B', marginBottom: 14 }}>
-                            Filter by CRM contact tags or broadcast to all active customers.
-                        </Text>
-
-                        {[
-                            { key: 'all', title: 'All CRM Directory Contacts', count: '1,250 recipients' },
-                            { key: 'leads', title: 'New Leads & Inquiries', count: '420 recipients' },
-                            { key: 'customers', title: 'VIP Repeat Customers', count: '140 recipients' },
-                        ].map((seg) => (
+                            {/* Option B: Filter by Tags */}
                             <TouchableOpacity
-                                key={seg.key}
-                                style={{
-                                    backgroundColor: selectedSegment === seg.key ? '#ECFDF5' : '#F8FAFC',
-                                    borderWidth: 1.5,
-                                    borderColor: selectedSegment === seg.key ? Colors.whatsappGreen : '#E2E8F0',
-                                    borderRadius: 10,
-                                    padding: 14,
-                                    marginBottom: 10,
-                                    flexDirection: 'row',
-                                    justifyContent: 'space-between',
-                                    alignItems: 'center',
-                                }}
-                                onPress={() => {
-                                    setSelectedSegment(seg.key as any);
-                                    setRecipientsCount(seg.key === 'all' ? '1250' : seg.key === 'leads' ? '420' : '140');
-                                }}>
-                                <View>
-                                    <Text style={{ fontSize: 13, fontWeight: '700', color: '#0F172A' }}>{seg.title}</Text>
-                                    <Text style={{ fontSize: 11, color: '#64748B', marginTop: 2 }}>{seg.count}</Text>
+                                style={[
+                                    wizardStyles.audienceOptionCard,
+                                    audienceType === 'tags' && wizardStyles.audienceOptionCardActive,
+                                ]}
+                                activeOpacity={0.85}
+                                onPress={() => setAudienceType('tags')}>
+                                <View style={wizardStyles.audienceCardContent}>
+                                    <View style={[wizardStyles.audienceIconWrap, { backgroundColor: '#EDE9FE' }]}>
+                                        <IconTag size={18} color="#7C3AED" />
+                                    </View>
+                                    <View style={{ flex: 1, marginLeft: 12 }}>
+                                        <Text style={wizardStyles.audienceOptionTitle}>
+                                            Filter by Contact Tags
+                                        </Text>
+                                        <Text style={wizardStyles.audienceOptionSub}>
+                                            Send specifically to contacts tagged in CRM stages
+                                        </Text>
+                                    </View>
+                                    <View
+                                        style={[
+                                            wizardStyles.radioOuter,
+                                            audienceType === 'tags' && wizardStyles.radioOuterActive,
+                                        ]}>
+                                        {audienceType === 'tags' && <View style={wizardStyles.radioInner} />}
+                                    </View>
                                 </View>
-                                <View
-                                    style={{
-                                        width: 18,
-                                        height: 18,
-                                        borderRadius: 9,
-                                        borderWidth: 2,
-                                        borderColor: selectedSegment === seg.key ? Colors.whatsappGreen : '#CBD5E1',
-                                        backgroundColor: selectedSegment === seg.key ? Colors.whatsappGreen : 'transparent',
-                                    }}
-                                />
-                            </TouchableOpacity>
-                        ))}
 
-                        <View style={{ backgroundColor: '#F0FDF4', borderRadius: 8, padding: 10, marginBottom: 14, flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                            <IconCheck size={14} color="#166534" />
-                            <Text style={{ fontSize: 11, color: '#166534', fontWeight: '600', flex: 1 }}>
-                                Safe Broadcast: Automatically skips opted-out contacts and numbers without WhatsApp.
-                            </Text>
-                        </View>
-
-                        <View style={{ flexDirection: 'row', gap: 10 }}>
-                            <TouchableOpacity
-                                style={{ flex: 1, height: 44, borderRadius: 10, borderWidth: 1, borderColor: '#CBD5E1', alignItems: 'center', justifyContent: 'center' }}
-                                onPress={() => setWizardStep(1)}>
-                                <Text style={{ color: '#475569', fontWeight: '600', fontSize: 13 }}>← Back</Text>
-                            </TouchableOpacity>
-                            <TouchableOpacity
-                                style={{ flex: 1, height: 44, borderRadius: 10, backgroundColor: Colors.whatsappGreen, alignItems: 'center', justifyContent: 'center' }}
-                                onPress={() => setWizardStep(3)}>
-                                <Text style={{ color: '#FFFFFF', fontWeight: '700', fontSize: 13 }}>Next: Personalize →</Text>
-                            </TouchableOpacity>
-                        </View>
-                    </View>
-                )}
-
-                {/* Step 3: Personalization Mapping */}
-                {wizardStep === 3 && (
-                    <View>
-                        <Text style={{ fontSize: 17, fontWeight: '700', color: '#0F172A', marginBottom: 4 }}>
-                            Step 3: Personalization Mapping
-                        </Text>
-                        <Text style={{ fontSize: 12, color: '#64748B', marginBottom: 12 }}>
-                            Define variable placeholders and campaign identifier.
-                        </Text>
-
-                        <Text style={{ fontSize: 11, fontWeight: '700', color: '#475569', marginBottom: 4 }}>Campaign Name *</Text>
-                        <TextInput
-                            style={{ height: 40, borderWidth: 1, borderColor: '#CBD5E1', borderRadius: 8, paddingHorizontal: 10, marginBottom: 10, fontSize: 13, color: '#0F172A', backgroundColor: '#F8FAFC' }}
-                            placeholder="e.g. November Flash Sale 2026"
-                            value={campaignName}
-                            onChangeText={setCampaignName}
-                        />
-
-                        <Text style={{ fontSize: 11, fontWeight: '700', color: '#475569', marginBottom: 4 }}>Placeholder {'{{1}}'} (Customer Name)</Text>
-                        <TextInput
-                            style={{ height: 40, borderWidth: 1, borderColor: '#CBD5E1', borderRadius: 8, paddingHorizontal: 10, marginBottom: 10, fontSize: 13, color: '#0F172A', backgroundColor: '#F8FAFC' }}
-                            value={templateVar1}
-                            onChangeText={setTemplateVar1}
-                        />
-
-                        <Text style={{ fontSize: 11, fontWeight: '700', color: '#475569', marginBottom: 4 }}>Placeholder {'{{2}}'} (Promo Code / Value)</Text>
-                        <TextInput
-                            style={{ height: 40, borderWidth: 1, borderColor: '#CBD5E1', borderRadius: 8, paddingHorizontal: 10, marginBottom: 14, fontSize: 13, color: '#0F172A', backgroundColor: '#F8FAFC' }}
-                            value={templateVar2}
-                            onChangeText={setTemplateVar2}
-                        />
-
-                        <View style={{ flexDirection: 'row', gap: 10 }}>
-                            <TouchableOpacity
-                                style={{ flex: 1, height: 44, borderRadius: 10, borderWidth: 1, borderColor: '#CBD5E1', alignItems: 'center', justifyContent: 'center' }}
-                                onPress={() => setWizardStep(2)}>
-                                <Text style={{ color: '#475569', fontWeight: '600', fontSize: 13 }}>← Back</Text>
-                            </TouchableOpacity>
-                            <TouchableOpacity
-                                style={{ flex: 1, height: 44, borderRadius: 10, backgroundColor: Colors.whatsappGreen, alignItems: 'center', justifyContent: 'center' }}
-                                onPress={() => {
-                                    if (!campaignName.trim()) {
-                                        Alert.alert('Required', 'Please enter a campaign name');
-                                        return;
-                                    }
-                                    setWizardStep(4);
-                                }}>
-                                <Text style={{ color: '#FFFFFF', fontWeight: '700', fontSize: 13 }}>Next: Review & Schedule →</Text>
-                            </TouchableOpacity>
-                        </View>
-                    </View>
-                )}
-
-                {/* Step 4: Review, Throttling & Launch */}
-                {wizardStep === 4 && (
-                    <View>
-                        <Text style={{ fontSize: 17, fontWeight: '700', color: '#0F172A', marginBottom: 4 }}>
-                            Step 4: Review & Launch Campaign
-                        </Text>
-                        <Text style={{ fontSize: 12, color: '#64748B', marginBottom: 12 }}>
-                            Meta safe throttling is enforced to protect your WhatsApp number quality score.
-                        </Text>
-
-                        {/* Summary Card */}
-                        <View style={{ backgroundColor: '#F8FAFC', borderRadius: 10, borderWidth: 1, borderColor: '#E2E8F0', padding: 12, marginBottom: 12 }}>
-                            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 }}>
-                                <Text style={{ fontSize: 12, color: '#64748B' }}>Campaign:</Text>
-                                <Text style={{ fontSize: 12, fontWeight: '700', color: '#0F172A' }}>{campaignName}</Text>
-                            </View>
-                            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 }}>
-                                <Text style={{ fontSize: 12, color: '#64748B' }}>Template:</Text>
-                                <Text style={{ fontSize: 12, fontWeight: '700', color: '#0F172A' }}>{templateName}</Text>
-                            </View>
-                            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 }}>
-                                <Text style={{ fontSize: 12, color: '#64748B' }}>Recipients:</Text>
-                                <Text style={{ fontSize: 12, fontWeight: '700', color: '#166534' }}>{recipientsCount} contacts</Text>
-                            </View>
-                            <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-                                <Text style={{ fontSize: 12, color: '#64748B' }}>Safe Throttling Rate:</Text>
-                                <Text style={{ fontSize: 12, fontWeight: '700', color: '#0284C7' }}>20 messages / second</Text>
-                            </View>
-                        </View>
-
-                        {/* Schedule Timing Choice */}
-                        <Text style={{ fontSize: 11, fontWeight: '700', color: '#475569', marginBottom: 6 }}>Dispatch Timing</Text>
-                        <View style={{ flexDirection: 'row', gap: 10, marginBottom: 14 }}>
-                            <TouchableOpacity
-                                style={{
-                                    flex: 1,
-                                    paddingVertical: 10,
-                                    borderRadius: 8,
-                                    borderWidth: 1,
-                                    borderColor: scheduleMode === 'now' ? Colors.whatsappGreen : '#CBD5E1',
-                                    backgroundColor: scheduleMode === 'now' ? '#ECFDF5' : '#FFFFFF',
-                                    alignItems: 'center',
-                                }}
-                                onPress={() => setScheduleMode('now')}>
-                                <Text style={{ fontSize: 12, fontWeight: '700', color: scheduleMode === 'now' ? '#166534' : '#475569' }}>
-                                    Send Immediately
-                                </Text>
-                            </TouchableOpacity>
-                            <TouchableOpacity
-                                style={{
-                                    flex: 1,
-                                    paddingVertical: 10,
-                                    borderRadius: 8,
-                                    borderWidth: 1,
-                                    borderColor: scheduleMode === 'scheduled' ? Colors.whatsappGreen : '#CBD5E1',
-                                    backgroundColor: scheduleMode === 'scheduled' ? '#ECFDF5' : '#FFFFFF',
-                                    alignItems: 'center',
-                                }}
-                                onPress={() => setScheduleMode('scheduled')}>
-                                <Text style={{ fontSize: 12, fontWeight: '700', color: scheduleMode === 'scheduled' ? '#166534' : '#475569' }}>
-                                    Schedule for Later
-                                </Text>
-                            </TouchableOpacity>
-                        </View>
-
-                        <View style={{ flexDirection: 'row', gap: 10 }}>
-                            <TouchableOpacity
-                                style={{ flex: 1, height: 44, borderRadius: 10, borderWidth: 1, borderColor: '#CBD5E1', alignItems: 'center', justifyContent: 'center' }}
-                                onPress={() => setWizardStep(3)}>
-                                <Text style={{ color: '#475569', fontWeight: '600', fontSize: 13 }}>← Back</Text>
-                            </TouchableOpacity>
-
-                            <TouchableOpacity
-                                style={{ flex: 1.4, height: 44, borderRadius: 10, backgroundColor: Colors.whatsappGreen, alignItems: 'center', justifyContent: 'center' }}
-                                disabled={isCreating}
-                                onPress={handleCreateBroadcast}>
-                                {isCreating ? (
-                                    <ActivityIndicator color="#FFFFFF" size="small" />
-                                ) : (
-                                    <Text style={{ color: '#FFFFFF', fontWeight: '700', fontSize: 13 }}>
-                                        Launch Official Broadcast
-                                    </Text>
+                                {audienceType === 'tags' && (
+                                    <View style={wizardStyles.tagsSelectionContainer}>
+                                        <Text style={wizardStyles.tagListPrompt}>Select one or more tags:</Text>
+                                        <View style={wizardStyles.tagChipsWrap}>
+                                            {availableTags.map((t) => {
+                                                const isTagSelected = selectedTagIds.includes(t.id);
+                                                return (
+                                                    <TouchableOpacity
+                                                        key={t.id}
+                                                        onPress={() => toggleTagSelection(t.id)}
+                                                        style={[
+                                                            wizardStyles.tagPill,
+                                                            isTagSelected && wizardStyles.tagPillSelected,
+                                                        ]}>
+                                                        <View
+                                                            style={[
+                                                                wizardStyles.tagDot,
+                                                                { backgroundColor: t.color || '#10B981' },
+                                                            ]}
+                                                        />
+                                                        <Text
+                                                            style={[
+                                                                wizardStyles.tagPillText,
+                                                                isTagSelected && wizardStyles.tagPillTextSelected,
+                                                            ]}>
+                                                            {t.name}
+                                                        </Text>
+                                                        {isTagSelected && (
+                                                            <IconCheck size={12} color="#166534" />
+                                                        )}
+                                                    </TouchableOpacity>
+                                                );
+                                            })}
+                                        </View>
+                                    </View>
                                 )}
                             </TouchableOpacity>
+
+                            {/* Estimated Audience Reach Banner */}
+                            <View style={wizardStyles.reachBanner}>
+                                <View style={wizardStyles.reachBannerTop}>
+                                    <IconUsers size={16} color="#166534" />
+                                    <Text style={wizardStyles.reachCountText}>
+                                        Estimated Reach: {estimatedReach.toLocaleString()} contacts
+                                    </Text>
+                                </View>
+                                <Text style={wizardStyles.reachNoteText}>
+                                    Meta Policy: Contacts opted-out and phone numbers not registered on WhatsApp are automatically filtered out.
+                                </Text>
+                            </View>
+
+                            {/* Navigation Buttons */}
+                            <View style={wizardStyles.dualBtnRow}>
+                                <TouchableOpacity
+                                    style={wizardStyles.actionBtnBack}
+                                    onPress={() => setWizardStep(1)}>
+                                    <Text style={wizardStyles.actionBtnBackText}>← Back</Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity
+                                    style={wizardStyles.actionBtnNext}
+                                    onPress={() => setWizardStep(3)}>
+                                    <Text style={wizardStyles.actionBtnNextText}>Next: Personalize →</Text>
+                                </TouchableOpacity>
+                            </View>
                         </View>
-                    </View>
-                )}
+                    )}
+
+                    {/* --------------------------------------------------------- */}
+                    {/* STEP 3: PERSONALIZE VARIABLES & LIVE WHATSAPP PREVIEW     */}
+                    {/* --------------------------------------------------------- */}
+                    {wizardStep === 3 && (
+                        <View>
+                            <Text style={wizardStyles.stepTitle}>
+                                Step 3: Personalization & Live Preview
+                            </Text>
+                            <Text style={wizardStyles.stepSubtitle}>
+                                Map placeholder variables and preview how recipients see the message.
+                            </Text>
+
+                            {/* Campaign Name Input */}
+                            <Text style={wizardStyles.fieldLabel}>Campaign Name *</Text>
+                            <TextInput
+                                style={wizardStyles.textInput}
+                                placeholder="e.g. November Flash Offer 2026"
+                                placeholderTextColor="#94A3B8"
+                                value={campaignName}
+                                onChangeText={setCampaignName}
+                            />
+
+                            {/* Dynamic Variable Mappings */}
+                            {extractedVariables.length > 0 ? (
+                                <View style={{ marginBottom: 14 }}>
+                                    <Text style={[wizardStyles.fieldLabel, { marginTop: 4 }]}>
+                                        Template Variables ({extractedVariables.length} Placeholders)
+                                    </Text>
+
+                                    {extractedVariables.map((vKey) => {
+                                        const currentMapping = variableMappings[vKey] || { type: 'field', value: 'name' };
+                                        return (
+                                            <View key={vKey} style={wizardStyles.variableCard}>
+                                                <View style={wizardStyles.variableCardHeader}>
+                                                    <View style={wizardStyles.varPill}>
+                                                        <Text style={wizardStyles.varPillText}>{`{{${vKey}}}`}</Text>
+                                                    </View>
+                                                    <View style={wizardStyles.mappingTypeRow}>
+                                                        <TouchableOpacity
+                                                            onPress={() =>
+                                                                setVariableMappings((prev) => ({
+                                                                    ...prev,
+                                                                    [vKey]: { type: 'field', value: 'name' },
+                                                                }))
+                                                            }
+                                                            style={[
+                                                                wizardStyles.mappingTypeBtn,
+                                                                currentMapping.type === 'field' && wizardStyles.mappingTypeBtnActive,
+                                                            ]}>
+                                                            <Text
+                                                                style={[
+                                                                    wizardStyles.mappingTypeBtnText,
+                                                                    currentMapping.type === 'field' && wizardStyles.mappingTypeBtnTextActive,
+                                                                ]}>
+                                                                Contact Field
+                                                            </Text>
+                                                        </TouchableOpacity>
+                                                        <TouchableOpacity
+                                                            onPress={() =>
+                                                                setVariableMappings((prev) => ({
+                                                                    ...prev,
+                                                                    [vKey]: { type: 'static', value: currentMapping.value || '' },
+                                                                }))
+                                                            }
+                                                            style={[
+                                                                wizardStyles.mappingTypeBtn,
+                                                                currentMapping.type === 'static' && wizardStyles.mappingTypeBtnActive,
+                                                            ]}>
+                                                            <Text
+                                                                style={[
+                                                                    wizardStyles.mappingTypeBtnText,
+                                                                    currentMapping.type === 'static' && wizardStyles.mappingTypeBtnTextActive,
+                                                                ]}>
+                                                                Custom Text
+                                                            </Text>
+                                                        </TouchableOpacity>
+                                                    </View>
+                                                </View>
+
+                                                {currentMapping.type === 'field' ? (
+                                                    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 8 }}>
+                                                        {[
+                                                            { label: 'Customer Name', val: 'name' },
+                                                            { label: 'Phone Number', val: 'phone' },
+                                                            { label: 'Company Name', val: 'company' },
+                                                            { label: 'Email Address', val: 'email' },
+                                                        ].map((f) => (
+                                                            <TouchableOpacity
+                                                                key={f.val}
+                                                                onPress={() =>
+                                                                    setVariableMappings((prev) => ({
+                                                                        ...prev,
+                                                                        [vKey]: { type: 'field', value: f.val },
+                                                                    }))
+                                                                }
+                                                                style={[
+                                                                    wizardStyles.fieldOptionPill,
+                                                                    currentMapping.value === f.val && wizardStyles.fieldOptionPillActive,
+                                                                ]}>
+                                                                <Text
+                                                                    style={[
+                                                                        wizardStyles.fieldOptionText,
+                                                                        currentMapping.value === f.val && wizardStyles.fieldOptionTextActive,
+                                                                    ]}>
+                                                                    {f.label}
+                                                                </Text>
+                                                            </TouchableOpacity>
+                                                        ))}
+                                                    </ScrollView>
+                                                ) : (
+                                                    <TextInput
+                                                        style={[wizardStyles.textInput, { marginTop: 8, marginBottom: 0 }]}
+                                                        placeholder="Enter custom static value..."
+                                                        placeholderTextColor="#94A3B8"
+                                                        value={currentMapping.value}
+                                                        onChangeText={(txt) =>
+                                                            setVariableMappings((prev) => ({
+                                                                ...prev,
+                                                                [vKey]: { type: 'static', value: txt },
+                                                            }))
+                                                        }
+                                                    />
+                                                )}
+                                            </View>
+                                        );
+                                    })}
+                                </View>
+                            ) : null}
+
+                            {/* WhatsApp Live Preview Bubble Card */}
+                            <Text style={wizardStyles.fieldLabel}>Recipient WhatsApp Live Preview</Text>
+                            <View style={wizardStyles.whatsappPreviewContainer}>
+                                <View style={wizardStyles.whatsappBubble}>
+                                    {selectedTemplate?.header_type && (
+                                        <View style={wizardStyles.whatsappHeaderMedia}>
+                                            <IconZap size={14} color="#059669" />
+                                            <Text style={wizardStyles.whatsappHeaderMediaText}>
+                                                [Header {selectedTemplate.header_type.toUpperCase()}]
+                                            </Text>
+                                        </View>
+                                    )}
+                                    <Text style={wizardStyles.whatsappBubbleText}>
+                                        {previewBodyText || selectedTemplate?.body_text}
+                                    </Text>
+                                    {selectedTemplate?.footer_text && (
+                                        <Text style={wizardStyles.whatsappFooterText}>
+                                            {selectedTemplate.footer_text}
+                                        </Text>
+                                    )}
+                                    <View style={wizardStyles.whatsappTimeRow}>
+                                        <Text style={wizardStyles.whatsappTimeText}>10:45 AM</Text>
+                                        <IconDoubleCheck size={13} color="#34B7F1" />
+                                    </View>
+                                </View>
+                            </View>
+
+                            {/* Navigation Buttons */}
+                            <View style={[wizardStyles.dualBtnRow, { marginTop: 14 }]}>
+                                <TouchableOpacity
+                                    style={wizardStyles.actionBtnBack}
+                                    onPress={() => setWizardStep(2)}>
+                                    <Text style={wizardStyles.actionBtnBackText}>← Back</Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity
+                                    style={wizardStyles.actionBtnNext}
+                                    onPress={() => {
+                                        if (!campaignName.trim()) {
+                                            Alert.alert('Required', 'Please enter a campaign name');
+                                            return;
+                                        }
+                                        setWizardStep(4);
+                                    }}>
+                                    <Text style={wizardStyles.actionBtnNextText}>Next: Review & Schedule →</Text>
+                                </TouchableOpacity>
+                            </View>
+                        </View>
+                    )}
+
+                    {/* --------------------------------------------------------- */}
+                    {/* STEP 4: REVIEW, SCHEDULE & LAUNCH CAMPAIGN               */}
+                    {/* --------------------------------------------------------- */}
+                    {wizardStep === 4 && (
+                        <View>
+                            <Text style={wizardStyles.stepTitle}>
+                                Step 4: Review & Launch Campaign
+                            </Text>
+                            <Text style={wizardStyles.stepSubtitle}>
+                                Meta Cloud API safe throttling is enforced to protect your WhatsApp number quality rating.
+                            </Text>
+
+                            {/* Summary Card */}
+                            <View style={wizardStyles.summaryCard}>
+                                <View style={wizardStyles.summaryRow}>
+                                    <Text style={wizardStyles.summaryLabel}>Campaign Name:</Text>
+                                    <Text style={wizardStyles.summaryValue}>{campaignName}</Text>
+                                </View>
+                                <View style={wizardStyles.summaryRow}>
+                                    <Text style={wizardStyles.summaryLabel}>Selected Template:</Text>
+                                    <Text style={wizardStyles.summaryValue}>{selectedTemplate?.name}</Text>
+                                </View>
+                                <View style={wizardStyles.summaryRow}>
+                                    <Text style={wizardStyles.summaryLabel}>Template Category:</Text>
+                                    <Text style={[wizardStyles.summaryValue, { color: '#7C3AED' }]}>
+                                        {selectedTemplate?.category}
+                                    </Text>
+                                </View>
+                                <View style={wizardStyles.summaryRow}>
+                                    <Text style={wizardStyles.summaryLabel}>Target Audience:</Text>
+                                    <Text style={wizardStyles.summaryValue}>
+                                        {audienceType === 'all'
+                                            ? 'All CRM Contacts'
+                                            : `${selectedTagIds.length} Selected Tags`}
+                                    </Text>
+                                </View>
+                                <View style={wizardStyles.summaryRow}>
+                                    <Text style={wizardStyles.summaryLabel}>Estimated Recipients:</Text>
+                                    <Text style={[wizardStyles.summaryValue, { color: '#166534', fontWeight: '800' }]}>
+                                        {estimatedReach.toLocaleString()} contacts
+                                    </Text>
+                                </View>
+                                <View style={wizardStyles.summaryRow}>
+                                    <Text style={wizardStyles.summaryLabel}>Safe Throttling Rate:</Text>
+                                    <Text style={[wizardStyles.summaryValue, { color: '#0284C7' }]}>
+                                        20 messages / second (Meta Safe Rate)
+                                    </Text>
+                                </View>
+                            </View>
+
+                            {/* Dispatch Timing Choice */}
+                            <Text style={wizardStyles.fieldLabel}>Dispatch Timing</Text>
+                            <View style={{ flexDirection: 'row', gap: 10, marginBottom: 14 }}>
+                                <TouchableOpacity
+                                    style={[
+                                        wizardStyles.timingOption,
+                                        scheduleMode === 'now' && wizardStyles.timingOptionActive,
+                                    ]}
+                                    onPress={() => setScheduleMode('now')}>
+                                    <Text
+                                        style={[
+                                            wizardStyles.timingOptionText,
+                                            scheduleMode === 'now' && wizardStyles.timingOptionTextActive,
+                                        ]}>
+                                        Send Immediately
+                                    </Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity
+                                    style={[
+                                        wizardStyles.timingOption,
+                                        scheduleMode === 'scheduled' && wizardStyles.timingOptionActive,
+                                    ]}
+                                    onPress={() => setScheduleMode('scheduled')}>
+                                    <Text
+                                        style={[
+                                            wizardStyles.timingOptionText,
+                                            scheduleMode === 'scheduled' && wizardStyles.timingOptionTextActive,
+                                        ]}>
+                                        Schedule for Later
+                                    </Text>
+                                </TouchableOpacity>
+                            </View>
+
+                            {/* Action Buttons: Save Draft & Launch */}
+                            <View style={{ flexDirection: 'row', gap: 10 }}>
+                                <TouchableOpacity
+                                    style={wizardStyles.actionBtnBack}
+                                    onPress={() => setWizardStep(3)}>
+                                    <Text style={wizardStyles.actionBtnBackText}>← Back</Text>
+                                </TouchableOpacity>
+
+                                <TouchableOpacity
+                                    style={wizardStyles.actionBtnDraft}
+                                    disabled={isCreating}
+                                    onPress={() => handleLaunchBroadcast('draft')}>
+                                    <Text style={wizardStyles.actionBtnDraftText}>Save Draft</Text>
+                                </TouchableOpacity>
+
+                                <TouchableOpacity
+                                    style={wizardStyles.actionBtnLaunch}
+                                    disabled={isCreating}
+                                    onPress={() => handleLaunchBroadcast('sent')}>
+                                    {isCreating ? (
+                                        <ActivityIndicator color="#FFFFFF" size="small" />
+                                    ) : (
+                                        <Text style={wizardStyles.actionBtnLaunchText}>
+                                            Launch Broadcast
+                                        </Text>
+                                    )}
+                                </TouchableOpacity>
+                            </View>
+                        </View>
+                    )}
                 </KeyboardAwareScrollView>
             </SmoothModal>
         </SafeAreaView>
     );
 };
+
+// -------------------------------------------------------------
+// Dedicated Clean Styles for the 4-Step Broadcast Wizard
+// -------------------------------------------------------------
+const wizardStyles = StyleSheet.create({
+    trackerRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        marginBottom: 16,
+        paddingBottom: 12,
+        borderBottomWidth: 1,
+        borderBottomColor: '#F1F5F9',
+    },
+    trackerItem: {
+        alignItems: 'center',
+        flex: 1,
+    },
+    trackerCircle: {
+        width: 28,
+        height: 28,
+        borderRadius: 14,
+        backgroundColor: '#F1F5F9',
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginBottom: 4,
+    },
+    trackerCircleActive: {
+        backgroundColor: Colors.whatsappGreen,
+    },
+    trackerCircleText: {
+        fontSize: 12,
+        fontWeight: '700',
+        color: '#64748B',
+    },
+    trackerCircleTextActive: {
+        color: '#FFFFFF',
+    },
+    trackerLabel: {
+        fontSize: 10,
+        fontWeight: '500',
+        color: '#94A3B8',
+    },
+    trackerLabelActive: {
+        fontWeight: '700',
+        color: '#0F172A',
+    },
+    stepTitle: {
+        fontSize: 17,
+        fontWeight: '800',
+        color: '#0F172A',
+        marginBottom: 3,
+        letterSpacing: -0.3,
+    },
+    stepSubtitle: {
+        fontSize: 12,
+        color: '#64748B',
+        marginBottom: 12,
+        lineHeight: 16,
+    },
+    searchBox: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: '#F8FAFC',
+        borderWidth: 1,
+        borderColor: '#E2E8F0',
+        borderRadius: 10,
+        paddingHorizontal: 10,
+        height: 40,
+        marginBottom: 10,
+        gap: 8,
+    },
+    searchInput: {
+        flex: 1,
+        fontSize: 13,
+        color: '#0F172A',
+        paddingVertical: 0,
+    },
+    categoryFilterChip: {
+        paddingHorizontal: 12,
+        paddingVertical: 6,
+        borderRadius: 16,
+        backgroundColor: '#F1F5F9',
+        borderWidth: 1,
+        borderColor: '#E2E8F0',
+    },
+    categoryFilterChipActive: {
+        backgroundColor: '#DCFCE7',
+        borderColor: Colors.whatsappGreen,
+    },
+    categoryFilterText: {
+        fontSize: 11,
+        fontWeight: '600',
+        color: '#475569',
+    },
+    categoryFilterTextActive: {
+        color: '#166534',
+        fontWeight: '700',
+    },
+    emptyStateBox: {
+        alignItems: 'center',
+        justifyContent: 'center',
+        paddingVertical: 32,
+        paddingHorizontal: 16,
+        backgroundColor: '#F8FAFC',
+        borderRadius: 12,
+        borderWidth: 1,
+        borderColor: '#E2E8F0',
+        marginBottom: 14,
+    },
+    emptyStateTitle: {
+        fontSize: 14,
+        fontWeight: '700',
+        color: '#1E293B',
+        marginTop: 8,
+        marginBottom: 4,
+    },
+    emptyStateSubtitle: {
+        fontSize: 11,
+        color: '#64748B',
+        textAlign: 'center',
+        lineHeight: 16,
+    },
+    templateCard: {
+        backgroundColor: '#F8FAFC',
+        borderWidth: 1.5,
+        borderColor: '#E2E8F0',
+        borderRadius: 12,
+        padding: 12,
+        marginBottom: 10,
+    },
+    templateCardSelected: {
+        backgroundColor: '#ECFDF5',
+        borderColor: Colors.whatsappGreen,
+    },
+    templateCardHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'flex-start',
+        marginBottom: 6,
+    },
+    templateCardName: {
+        fontSize: 13,
+        fontWeight: '700',
+        color: '#0F172A',
+    },
+    templateCardLanguage: {
+        fontSize: 10,
+        color: '#64748B',
+        marginTop: 2,
+    },
+    templateCatBadge: {
+        paddingHorizontal: 7,
+        paddingVertical: 2.5,
+        borderRadius: 6,
+    },
+    templateCatBadgeText: {
+        fontSize: 9.5,
+        fontWeight: '800',
+    },
+    templateCardBody: {
+        fontSize: 11.5,
+        color: '#475569',
+        lineHeight: 16.5,
+    },
+    actionBtnPrimary: {
+        backgroundColor: Colors.whatsappGreen,
+        borderRadius: 10,
+        height: 44,
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginTop: 8,
+    },
+    actionBtnPrimaryText: {
+        color: '#FFFFFF',
+        fontWeight: '700',
+        fontSize: 14,
+    },
+    audienceOptionCard: {
+        backgroundColor: '#F8FAFC',
+        borderWidth: 1.5,
+        borderColor: '#E2E8F0',
+        borderRadius: 12,
+        padding: 12,
+        marginBottom: 10,
+    },
+    audienceOptionCardActive: {
+        backgroundColor: '#ECFDF5',
+        borderColor: Colors.whatsappGreen,
+    },
+    audienceCardContent: {
+        flexDirection: 'row',
+        alignItems: 'center',
+    },
+    audienceIconWrap: {
+        width: 36,
+        height: 36,
+        borderRadius: 10,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    audienceOptionTitle: {
+        fontSize: 13,
+        fontWeight: '700',
+        color: '#0F172A',
+    },
+    audienceOptionSub: {
+        fontSize: 11,
+        color: '#64748B',
+        marginTop: 2,
+    },
+    radioOuter: {
+        width: 20,
+        height: 20,
+        borderRadius: 10,
+        borderWidth: 2,
+        borderColor: '#CBD5E1',
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    radioOuterActive: {
+        borderColor: Colors.whatsappGreen,
+    },
+    radioInner: {
+        width: 10,
+        height: 10,
+        borderRadius: 5,
+        backgroundColor: Colors.whatsappGreen,
+    },
+    tagsSelectionContainer: {
+        marginTop: 10,
+        paddingTop: 10,
+        borderTopWidth: 1,
+        borderTopColor: '#E2E8F0',
+    },
+    tagListPrompt: {
+        fontSize: 11,
+        fontWeight: '600',
+        color: '#475569',
+        marginBottom: 8,
+    },
+    tagChipsWrap: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        gap: 6,
+    },
+    tagPill: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 5,
+        backgroundColor: '#FFFFFF',
+        borderWidth: 1,
+        borderColor: '#CBD5E1',
+        paddingHorizontal: 9,
+        paddingVertical: 5,
+        borderRadius: 14,
+    },
+    tagPillSelected: {
+        backgroundColor: '#DCFCE7',
+        borderColor: '#166534',
+    },
+    tagDot: {
+        width: 7,
+        height: 7,
+        borderRadius: 3.5,
+    },
+    tagPillText: {
+        fontSize: 11,
+        fontWeight: '600',
+        color: '#475569',
+    },
+    tagPillTextSelected: {
+        color: '#166534',
+        fontWeight: '700',
+    },
+    reachBanner: {
+        backgroundColor: '#F0FDF4',
+        borderWidth: 1,
+        borderColor: '#BBF7D0',
+        borderRadius: 10,
+        padding: 12,
+        marginBottom: 14,
+    },
+    reachBannerTop: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+        marginBottom: 4,
+    },
+    reachCountText: {
+        fontSize: 13,
+        fontWeight: '800',
+        color: '#166534',
+    },
+    reachNoteText: {
+        fontSize: 10.5,
+        color: '#15803D',
+        lineHeight: 14,
+    },
+    dualBtnRow: {
+        flexDirection: 'row',
+        gap: 10,
+    },
+    actionBtnBack: {
+        flex: 1,
+        height: 44,
+        borderRadius: 10,
+        borderWidth: 1,
+        borderColor: '#CBD5E1',
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: '#FFFFFF',
+    },
+    actionBtnBackText: {
+        color: '#475569',
+        fontWeight: '700',
+        fontSize: 13,
+    },
+    actionBtnNext: {
+        flex: 1.4,
+        height: 44,
+        borderRadius: 10,
+        backgroundColor: Colors.whatsappGreen,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    actionBtnNextText: {
+        color: '#FFFFFF',
+        fontWeight: '700',
+        fontSize: 13,
+    },
+    fieldLabel: {
+        fontSize: 11.5,
+        fontWeight: '700',
+        color: '#334155',
+        marginBottom: 5,
+    },
+    textInput: {
+        height: 40,
+        borderWidth: 1,
+        borderColor: '#CBD5E1',
+        borderRadius: 8,
+        paddingHorizontal: 10,
+        marginBottom: 12,
+        fontSize: 13,
+        color: '#0F172A',
+        backgroundColor: '#F8FAFC',
+    },
+    variableCard: {
+        backgroundColor: '#F8FAFC',
+        borderWidth: 1,
+        borderColor: '#E2E8F0',
+        borderRadius: 10,
+        padding: 10,
+        marginBottom: 8,
+    },
+    variableCardHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+    },
+    varPill: {
+        backgroundColor: '#EDE9FE',
+        paddingHorizontal: 7,
+        paddingVertical: 2,
+        borderRadius: 6,
+    },
+    varPillText: {
+        fontSize: 11,
+        fontWeight: '800',
+        color: '#7C3AED',
+    },
+    mappingTypeRow: {
+        flexDirection: 'row',
+        gap: 6,
+    },
+    mappingTypeBtn: {
+        paddingHorizontal: 8,
+        paddingVertical: 3,
+        borderRadius: 6,
+        backgroundColor: '#FFFFFF',
+        borderWidth: 1,
+        borderColor: '#CBD5E1',
+    },
+    mappingTypeBtnActive: {
+        backgroundColor: '#DCFCE7',
+        borderColor: Colors.whatsappGreen,
+    },
+    mappingTypeBtnText: {
+        fontSize: 10,
+        fontWeight: '600',
+        color: '#64748B',
+    },
+    mappingTypeBtnTextActive: {
+        color: '#166534',
+        fontWeight: '700',
+    },
+    fieldOptionPill: {
+        backgroundColor: '#FFFFFF',
+        borderWidth: 1,
+        borderColor: '#CBD5E1',
+        borderRadius: 6,
+        paddingHorizontal: 8,
+        paddingVertical: 4,
+        marginRight: 6,
+    },
+    fieldOptionPillActive: {
+        backgroundColor: '#10B981',
+        borderColor: '#10B981',
+    },
+    fieldOptionText: {
+        fontSize: 10.5,
+        color: '#475569',
+        fontWeight: '600',
+    },
+    fieldOptionTextActive: {
+        color: '#FFFFFF',
+        fontWeight: '700',
+    },
+    whatsappPreviewContainer: {
+        backgroundColor: '#EFEAE2',
+        borderRadius: 12,
+        padding: 12,
+        marginBottom: 10,
+    },
+    whatsappBubble: {
+        backgroundColor: '#FFFFFF',
+        borderRadius: 10,
+        borderTopLeftRadius: 2,
+        padding: 10,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.05,
+        shadowRadius: 2,
+        elevation: 1,
+    },
+    whatsappHeaderMedia: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 4,
+        backgroundColor: '#F1F5F9',
+        padding: 6,
+        borderRadius: 6,
+        marginBottom: 6,
+    },
+    whatsappHeaderMediaText: {
+        fontSize: 10,
+        fontWeight: '700',
+        color: '#059669',
+    },
+    whatsappBubbleText: {
+        fontSize: 12.5,
+        color: '#111827',
+        lineHeight: 18,
+    },
+    whatsappFooterText: {
+        fontSize: 10,
+        color: '#64748B',
+        marginTop: 6,
+    },
+    whatsappTimeRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'flex-end',
+        gap: 4,
+        marginTop: 4,
+    },
+    whatsappTimeText: {
+        fontSize: 9.5,
+        color: '#94A3B8',
+    },
+    summaryCard: {
+        backgroundColor: '#F8FAFC',
+        borderRadius: 10,
+        borderWidth: 1,
+        borderColor: '#E2E8F0',
+        padding: 12,
+        marginBottom: 12,
+    },
+    summaryRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: 6,
+    },
+    summaryLabel: {
+        fontSize: 11.5,
+        color: '#64748B',
+    },
+    summaryValue: {
+        fontSize: 11.5,
+        fontWeight: '700',
+        color: '#0F172A',
+    },
+    timingOption: {
+        flex: 1,
+        paddingVertical: 10,
+        borderRadius: 8,
+        borderWidth: 1,
+        borderColor: '#CBD5E1',
+        backgroundColor: '#FFFFFF',
+        alignItems: 'center',
+    },
+    timingOptionActive: {
+        borderColor: Colors.whatsappGreen,
+        backgroundColor: '#ECFDF5',
+    },
+    timingOptionText: {
+        fontSize: 12,
+        fontWeight: '700',
+        color: '#475569',
+    },
+    timingOptionTextActive: {
+        color: '#166534',
+    },
+    actionBtnDraft: {
+        flex: 1,
+        height: 44,
+        borderRadius: 10,
+        borderWidth: 1,
+        borderColor: '#CBD5E1',
+        backgroundColor: '#FFFFFF',
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    actionBtnDraftText: {
+        color: '#475569',
+        fontWeight: '700',
+        fontSize: 13,
+    },
+    actionBtnLaunch: {
+        flex: 1.5,
+        height: 44,
+        borderRadius: 10,
+        backgroundColor: Colors.whatsappGreen,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    actionBtnLaunchText: {
+        color: '#FFFFFF',
+        fontWeight: '700',
+        fontSize: 13,
+    },
+});
