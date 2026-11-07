@@ -108,7 +108,8 @@ function WelcomeScreenWrapper({ navigation }: NativeStackScreenProps<RootStackPa
   return (
     <WelcomeScreen
       onNavigateLogin={() => navigation.navigate('Login')}
-      onNavigateSignUp={() => navigation.navigate('SignUp')}
+      onNavigateOnboarding={(params) => navigation.replace('Onboarding', params)}
+      onAccessGranted={() => navigation.replace('Inbox')}
     />
   );
 }

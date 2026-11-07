@@ -26,8 +26,6 @@ import {
     EyeIcon,
     EyeOffIcon,
     CheckIcon,
-    GoogleIcon,
-    AppleIcon,
 } from '../../components/AuthIcons';
 import { authService, supabase } from '../../services/supabase';
 import { verifyCurrentUserAccess } from '../../services/accessGuardService';
@@ -515,24 +513,6 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
                                     <ArrowRightIcon size={18} color="#FFFFFF" />
                                 </>
                             )}
-                        </TouchableOpacity>
-
-                        {/* OR Divider */}
-                        <View style={styles.dividerRow}>
-                            <View style={styles.dividerLine} />
-                            <Text style={styles.dividerText}>OR</Text>
-                            <View style={styles.dividerLine} />
-                        </View>
-
-                        {/* Social Logins */}
-                        <TouchableOpacity style={styles.socialBtn} activeOpacity={0.8}>
-                            <GoogleIcon size={20} />
-                            <Text style={styles.socialBtnText}>Continue with Google</Text>
-                        </TouchableOpacity>
-
-                        <TouchableOpacity style={styles.socialBtn} activeOpacity={0.8}>
-                            <AppleIcon size={20} color="#000000" />
-                            <Text style={styles.socialBtnText}>Continue with Apple</Text>
                         </TouchableOpacity>
                     </View>
 

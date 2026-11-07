@@ -6,13 +6,13 @@ import {
     Dimensions,
     StatusBar,
     Animated,
+    ActivityIndicator,
     NativeSyntheticEvent,
     NativeScrollEvent,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { styles } from './styles';
 import { Colors } from '../../theme/colors';
-import { PaperPlaneIcon } from '../../components/PaperPlaneIcon';
 import { BrandLogo } from '../../components/BrandLogo';
 import {
     LightningIcon,
@@ -31,6 +31,8 @@ import {
     SlidersMini,
     DoubleCheckMini,
 } from '../../components/WelcomeIcons';
+import { authService } from '../../services/supabase';
+import { verifyCurrentUserAccess } from '../../services/accessGuardService';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -129,12 +131,23 @@ const SLIDES_DATA: SlideItem[] = [
 ];
 
 interface WelcomeScreenProps {
-    onNavigateLogin?: () => void;
-    onNavigateSignUp?: () => void;
+    onNavigateLogin: () => void;
+    onNavigateOnboarding: (params: {
+        email?: string;
+        reason?: string;
+        expiryDate?: string | null;
+        status?: string;
+    }) => void;
+    onAccessGranted: () => void;
 }
 
-export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onNavigateLogin, onNavigateSignUp }) => {
+export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
+    onNavigateLogin,
+    onNavigateOnboarding,
+    onAccessGranted,
+}) => {
     const [currentIndex, setCurrentIndex] = useState(0);
+    const [isVerifying, setIsVerifying] = useState(false);
     const scrollX = useRef(new Animated.Value(0)).current;
     const flatListRef = useRef<any>(null);
     const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -166,6 +179,39 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onNavigateLogin, o
         const offsetX = e.nativeEvent.contentOffset.x;
         const index = Math.round(offsetX / SCREEN_WIDTH);
         setCurrentIndex(index);
+    };
+
+    /**
+     * Requirement: Only "Get Started" button.
+     * On click: If logged in and all checks cleared, move to CRM inbox.
+     * Otherwise if logged in but restricted/expired, move to Onboarding screen.
+     * Otherwise if not logged in, move to Login screen.
+     */
+    const handleGetStarted = async () => {
+        if (isVerifying) return;
+        setIsVerifying(true);
+        try {
+            const session = await authService.getSession();
+            if (session?.user) {
+                const access = await verifyCurrentUserAccess(session.user.email);
+                if (access.isAllowed) {
+                    onAccessGranted();
+                } else {
+                    onNavigateOnboarding({
+                        email: session.user.email || '',
+                        reason: access.reason || 'inactive',
+                        expiryDate: access.expiryDate,
+                        status: access.status,
+                    });
+                }
+            } else {
+                onNavigateLogin();
+            }
+        } catch {
+            onNavigateLogin();
+        } finally {
+            setIsVerifying(false);
+        }
     };
 
     const renderBadgeIcon = (icon: BadgeIconType) => {
@@ -214,13 +260,6 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onNavigateLogin, o
                     <BrandLogo width={140} height={36} resizeMode="contain" />
                     <Text style={styles.brandSub}>Automate. Engage. Grow.</Text>
                 </View>
-
-                <TouchableOpacity
-                    style={styles.skipBtn}
-                    activeOpacity={0.7}
-                    onPress={onNavigateLogin}>
-                    <Text style={styles.skipText}>Skip</Text>
-                </TouchableOpacity>
             </View>
 
             {/* Auto-sliding Carousel */}
@@ -383,21 +422,21 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onNavigateLogin, o
                 })}
             </View>
 
-            {/* Bottom Action Buttons */}
+            {/* Bottom Action: ONLY "Get Started" Button */}
             <View style={styles.actionsContainer}>
                 <TouchableOpacity
                     style={styles.primaryBtn}
                     activeOpacity={0.85}
-                    onPress={onNavigateLogin}>
-                    <Text style={styles.primaryBtnText}>Sign In to Account</Text>
-                    <ArrowRightIcon size={18} />
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                    style={styles.secondaryBtn}
-                    activeOpacity={0.85}
-                    onPress={onNavigateSignUp || onNavigateLogin}>
-                    <Text style={styles.secondaryBtnText}>Create New Workspace</Text>
+                    disabled={isVerifying}
+                    onPress={handleGetStarted}>
+                    {isVerifying ? (
+                        <ActivityIndicator color="#FFFFFF" size="small" />
+                    ) : (
+                        <>
+                            <Text style={styles.primaryBtnText}>Get Started</Text>
+                            <ArrowRightIcon size={18} />
+                        </>
+                    )}
                 </TouchableOpacity>
             </View>
         </SafeAreaView>
