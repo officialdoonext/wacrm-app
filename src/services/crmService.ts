@@ -166,14 +166,23 @@ class CRMService {
   // -------------------------------------------------------------
   // CONVERSATIONS (SHARED INBOX)
   // -------------------------------------------------------------
-  async fetchConversations(forceRefresh = false): Promise<DynamicConversation[]> {
-    if (!forceRefresh && conversationsCache.length > 0) {
+  async fetchConversations(
+    forceRefresh = false,
+    options?: { page?: number; limit?: number }
+  ): Promise<DynamicConversation[]> {
+    const page = options?.page ?? 0;
+    const limit = options?.limit ?? 24;
+
+    if (!forceRefresh && page === 0 && conversationsCache.length > 0) {
       // Background revalidation
       this.refreshConversationsInBackground();
       return conversationsCache;
     }
 
     try {
+      const from = page * limit;
+      const to = from + limit - 1;
+
       const { data, error } = await supabase
         .from('conversations')
         .select(`
@@ -194,15 +203,16 @@ class CRMService {
             avatar_url
           )
         `)
-        .order('last_message_at', { ascending: false });
+        .order('last_message_at', { ascending: false })
+        .range(from, to);
 
       if (error) {
         console.warn('Error fetching conversations:', error.message);
-        return conversationsCache;
+        return page === 0 ? conversationsCache : [];
       }
 
       if (data) {
-        conversationsCache = data.map((item: any, idx: number) => {
+        const mapped = data.map((item: any, idx: number) => {
           const contactObj = item.contact || {
             id: item.contact_id,
             name: 'Customer',
@@ -224,16 +234,21 @@ class CRMService {
               company: contactObj.company || '',
               email: contactObj.email || '',
               avatar_url: contactObj.avatar_url,
-              tag: getTagForContact(contactObj, idx),
+              tag: getTagForContact(contactObj, from + idx),
             },
           };
         });
+
+        if (page === 0) {
+          conversationsCache = mapped;
+        }
+        return mapped;
       }
 
-      return conversationsCache;
+      return page === 0 ? conversationsCache : [];
     } catch (err: any) {
       console.warn('Fetch conversations exception:', err?.message);
-      return conversationsCache;
+      return page === 0 ? conversationsCache : [];
     }
   }
 

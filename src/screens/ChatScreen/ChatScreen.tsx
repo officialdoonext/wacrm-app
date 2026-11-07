@@ -14,10 +14,12 @@ import {
     Keyboard,
     Linking,
     StyleSheet,
+    PermissionsAndroid,
+    Alert,
+    NativeModules,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Colors } from '../../theme/colors';
-import { BrandLogo } from '../../components/BrandLogo';
 import { WhatsAppMiniBadge } from '../../components/DashboardIcons';
 import {
     ChevronBackIcon,
@@ -123,6 +125,16 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
     const [quickRepliesVisible, setQuickRepliesVisible] = useState(false);
     const [interactiveModalVisible, setInteractiveModalVisible] = useState(false);
 
+    // Real Device Picked Media State (for preview & caption confirmation before sending)
+    const [pickedMediaPreviewVisible, setPickedMediaPreviewVisible] = useState(false);
+    const [pickedMediaData, setPickedMediaData] = useState<{
+        type: 'image' | 'video' | 'document';
+        uri: string;
+        name: string;
+        size?: number;
+    } | null>(null);
+    const [pickedMediaCaption, setPickedMediaCaption] = useState('');
+
     // Audio Recorder State
     const [isRecordingVoice, setIsRecordingVoice] = useState(false);
     const [recordingSecs, setRecordingSecs] = useState(0);
@@ -161,6 +173,9 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
     const [newNoteText, setNewNoteText] = useState('');
 
     const scrollViewRef = useRef<React.ElementRef<typeof ScrollView>>(null);
+    const isPrependingOlderRef = useRef(false);
+    const prevContentHeightRef = useRef<number>(0);
+    const isInitialLoadRef = useRef(true);
     const conversationId = participant.conversationId || participant.id || '';
 
     // Check 24-Hour Policy Window
@@ -222,6 +237,7 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
             }
 
             if (olderSlice.length > 0) {
+                isPrependingOlderRef.current = true;
                 setMessages((prev) => [...olderSlice, ...prev]);
             }
         } catch (err) {
@@ -232,6 +248,7 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
     }, [hasMoreOlder, isLoadingOlder, messages, conversationId]);
 
     useEffect(() => {
+        isInitialLoadRef.current = true;
         loadMessages();
 
         // Supabase Realtime channel subscription
@@ -272,14 +289,34 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
         }
     }, [conversationId, loadMessages]);
 
-    // Scroll to bottom when messages count changes
+    // Scroll to bottom when messages count changes, EXCEPT when prepending older messages
     useEffect(() => {
-        if (messages.length > 0) {
+        if (isPrependingOlderRef.current) {
+            return;
+        }
+        if (messages.length > 0 && !isInitialLoadRef.current) {
             setTimeout(() => {
                 scrollViewRef.current?.scrollToEnd({ animated: true });
             }, 80);
         }
     }, [messages.length]);
+
+    // Preserve scroll position when older messages are loaded into the top
+    const handleContentSizeChange = (_w: number, newHeight: number) => {
+        if (isPrependingOlderRef.current) {
+            const diff = newHeight - prevContentHeightRef.current;
+            if (diff > 0) {
+                scrollViewRef.current?.scrollTo({ y: diff, animated: false });
+            }
+            isPrependingOlderRef.current = false;
+        } else if (isInitialLoadRef.current && messages.length > 0) {
+            isInitialLoadRef.current = false;
+            setTimeout(() => {
+                scrollViewRef.current?.scrollToEnd({ animated: false });
+            }, 60);
+        }
+        prevContentHeightRef.current = newHeight;
+    };
 
     const formatTime = (isoString?: string) => {
         if (!isoString) return '';
@@ -355,27 +392,215 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
         }
     };
 
-    // Voice Recorder Actions
-    const handleStartRecording = () => {
+    // -------------------------------------------------------------
+    // Device Permissions & Native Media / Voice Pickers
+    // -------------------------------------------------------------
+    const requestAudioRecordingPermission = async (): Promise<boolean> => {
+        if (Platform.OS !== 'android') return true;
+        try {
+            const granted = await PermissionsAndroid.request(
+                PermissionsAndroid.PERMISSIONS.RECORD_AUDIO,
+                {
+                    title: 'Microphone Permission Required',
+                    message: 'menext requires microphone access to record and send WhatsApp voice notes.',
+                    buttonPositive: 'Allow',
+                    buttonNegative: 'Deny',
+                }
+            );
+            if (granted === PermissionsAndroid.RESULTS.GRANTED) {
+                return true;
+            } else {
+                Alert.alert(
+                    'Microphone Permission Denied',
+                    'Microphone permission is required to record voice notes. Please grant permission in your device Settings.'
+                );
+                return false;
+            }
+        } catch (err) {
+            console.warn('Microphone permission error:', err);
+            return false;
+        }
+    };
+
+    const requestMediaPermission = async (type: 'image' | 'video' | 'document'): Promise<boolean> => {
+        if (Platform.OS !== 'android') return true;
+        try {
+            const perms: any[] = [];
+            if (typeof Platform.Version === 'number' && Platform.Version >= 33) {
+                if (type === 'image') perms.push('android.permission.READ_MEDIA_IMAGES');
+                else if (type === 'video') perms.push('android.permission.READ_MEDIA_VIDEO');
+                else perms.push('android.permission.READ_MEDIA_IMAGES');
+            } else {
+                perms.push(PermissionsAndroid.PERMISSIONS.READ_EXTERNAL_STORAGE);
+            }
+            perms.push(PermissionsAndroid.PERMISSIONS.CAMERA);
+
+            await PermissionsAndroid.requestMultiple(perms);
+            return true;
+        } catch (err) {
+            console.warn('Storage permission error:', err);
+            return true;
+        }
+    };
+
+    const { NativeMediaPicker } = NativeModules;
+
+    const handlePickPhoto = async () => {
+        setAttachmentModalVisible(false);
+        const hasPermission = await requestMediaPermission('image');
+        if (!hasPermission) return;
+
+        try {
+            if (NativeMediaPicker?.pickImage) {
+                const result = await NativeMediaPicker.pickImage();
+                if (result && result.uri) {
+                    setPickedMediaData({
+                        type: 'image',
+                        uri: result.uri,
+                        name: result.name || 'Photo.jpg',
+                        size: result.size,
+                    });
+                    setPickedMediaCaption('');
+                    setPickedMediaPreviewVisible(true);
+                }
+            } else {
+                Alert.alert(
+                    'Device Photo Library',
+                    'Native photo picker module is configured. Please rebuild with "npx react-native run-android" to enable device gallery access.',
+                    [{ text: 'OK' }]
+                );
+            }
+        } catch (err: any) {
+            if (err?.code !== 'CANCELLED') {
+                console.warn('Pick photo error:', err);
+            }
+        }
+    };
+
+    const handlePickVideo = async () => {
+        setAttachmentModalVisible(false);
+        const hasPermission = await requestMediaPermission('video');
+        if (!hasPermission) return;
+
+        try {
+            if (NativeMediaPicker?.pickVideo) {
+                const result = await NativeMediaPicker.pickVideo();
+                if (result && result.uri) {
+                    setPickedMediaData({
+                        type: 'video',
+                        uri: result.uri,
+                        name: result.name || 'Video.mp4',
+                        size: result.size,
+                    });
+                    setPickedMediaCaption('');
+                    setPickedMediaPreviewVisible(true);
+                }
+            } else {
+                Alert.alert(
+                    'Device Video Library',
+                    'Native video picker module is configured. Please rebuild with "npx react-native run-android" to enable device video library access.'
+                );
+            }
+        } catch (err: any) {
+            if (err?.code !== 'CANCELLED') {
+                console.warn('Pick video error:', err);
+            }
+        }
+    };
+
+    const handlePickDocument = async () => {
+        setAttachmentModalVisible(false);
+        const hasPermission = await requestMediaPermission('document');
+        if (!hasPermission) return;
+
+        try {
+            if (NativeMediaPicker?.pickDocument) {
+                const result = await NativeMediaPicker.pickDocument();
+                if (result && result.uri) {
+                    setPickedMediaData({
+                        type: 'document',
+                        uri: result.uri,
+                        name: result.name || 'Document.pdf',
+                        size: result.size,
+                    });
+                    setPickedMediaCaption('');
+                    setPickedMediaPreviewVisible(true);
+                }
+            } else {
+                Alert.alert(
+                    'Device Document Picker',
+                    'Native document picker module is configured. Please rebuild with "npx react-native run-android" to enable device document access.'
+                );
+            }
+        } catch (err: any) {
+            if (err?.code !== 'CANCELLED') {
+                console.warn('Pick document error:', err);
+            }
+        }
+    };
+
+    const handleConfirmSendPickedMedia = () => {
+        if (!pickedMediaData) return;
+        const textToSend = pickedMediaCaption.trim() || pickedMediaData.name;
+        handleSend(textToSend, pickedMediaData.type, pickedMediaData.uri);
+        setPickedMediaPreviewVisible(false);
+        setPickedMediaData(null);
+        setPickedMediaCaption('');
+    };
+
+    // Voice Recorder Actions with Android Runtime Permission and Native Microphone
+    const handleStartRecording = async () => {
+        const hasPermission = await requestAudioRecordingPermission();
+        if (!hasPermission) return;
+
+        try {
+            if (NativeMediaPicker?.startAudioRecording) {
+                await NativeMediaPicker.startAudioRecording();
+            }
+        } catch (err) {
+            console.warn('Native audio start error:', err);
+        }
+
         setIsRecordingVoice(true);
         setRecordingSecs(0);
+        if (recordTimerRef.current) clearInterval(recordTimerRef.current);
         recordTimerRef.current = setInterval(() => {
             setRecordingSecs((s) => s + 1);
         }, 1000);
     };
 
-    const handleCancelRecording = () => {
+    const handleCancelRecording = async () => {
         if (recordTimerRef.current) clearInterval(recordTimerRef.current);
         setIsRecordingVoice(false);
         setRecordingSecs(0);
+        try {
+            if (NativeMediaPicker?.cancelAudioRecording) {
+                await NativeMediaPicker.cancelAudioRecording();
+            }
+        } catch {
+            // ignore
+        }
     };
 
-    const handleSendVoiceNote = () => {
+    const handleSendVoiceNote = async () => {
         if (recordTimerRef.current) clearInterval(recordTimerRef.current);
         setIsRecordingVoice(false);
         const durationStr = `0:${recordingSecs < 10 ? '0' : ''}${recordingSecs}`;
         setRecordingSecs(0);
-        handleSend(`Voice message (${durationStr})`, 'audio', 'https://actions.google.com/sounds/v1/alarms/beep_short.ogg');
+
+        let finalAudioUri = 'https://actions.google.com/sounds/v1/alarms/beep_short.ogg';
+        try {
+            if (NativeMediaPicker?.stopAudioRecording) {
+                const res = await NativeMediaPicker.stopAudioRecording();
+                if (res && res.uri) {
+                    finalAudioUri = res.uri;
+                }
+            }
+        } catch (err) {
+            console.warn('Native audio stop error:', err);
+        }
+
+        handleSend(`Voice message (${durationStr})`, 'audio', finalAudioUri);
     };
 
     // AI Copilot Draft
@@ -459,10 +684,6 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
                     <TouchableOpacity onPress={onBack} style={localStyles.backButton} activeOpacity={0.7}>
                         <ChevronBackIcon size={22} color="#0F172A" />
                     </TouchableOpacity>
-
-                    <View style={{ marginRight: 6 }}>
-                        <BrandLogo width={76} height={22} resizeMode="contain" />
-                    </View>
 
                     <TouchableOpacity
                         style={localStyles.avatarWrapper}
@@ -581,6 +802,7 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
                             contentContainerStyle={localStyles.scrollContent}
                             showsVerticalScrollIndicator={false}
                             keyboardShouldPersistTaps="handled"
+                            onContentSizeChange={handleContentSizeChange}
                             onScroll={({ nativeEvent }) => {
                                 if (nativeEvent.contentOffset.y <= 15 && hasMoreOlder && !isLoadingOlder) {
                                     loadOlderMessages();
@@ -931,46 +1153,37 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
 
                 <TouchableOpacity
                     style={localStyles.modalActionRow}
-                    onPress={() => {
-                        setAttachmentModalVisible(false);
-                        handleSend('Product Catalogue & Spec Sheet', 'image', 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=600');
-                    }}>
+                    onPress={handlePickPhoto}>
                     <View style={[localStyles.modalActionIcon, { backgroundColor: '#DCFCE7' }]}>
                         <IconCamera size={18} color="#059669" />
                     </View>
                     <View style={{ flex: 1 }}>
                         <Text style={localStyles.modalActionTitle}>Photos & Media</Text>
-                        <Text style={localStyles.modalActionSub}>Upload high-res images to chat-media</Text>
+                        <Text style={localStyles.modalActionSub}>Choose directly from device photo gallery</Text>
                     </View>
                 </TouchableOpacity>
 
                 <TouchableOpacity
                     style={localStyles.modalActionRow}
-                    onPress={() => {
-                        setAttachmentModalVisible(false);
-                        handleSend('Product Demo & Tutorial Video', 'video', 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4');
-                    }}>
+                    onPress={handlePickVideo}>
                     <View style={[localStyles.modalActionIcon, { backgroundColor: '#DBEAFE' }]}>
                         <IconVideo size={18} color="#1E40AF" />
                     </View>
                     <View style={{ flex: 1 }}>
                         <Text style={localStyles.modalActionTitle}>Video Clip</Text>
-                        <Text style={localStyles.modalActionSub}>Send HD product demo or explainer video</Text>
+                        <Text style={localStyles.modalActionSub}>Choose video from device files</Text>
                     </View>
                 </TouchableOpacity>
 
                 <TouchableOpacity
                     style={localStyles.modalActionRow}
-                    onPress={() => {
-                        setAttachmentModalVisible(false);
-                        handleSend('Invoice & Agreement Proposal (PDF)', 'document', 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf');
-                    }}>
+                    onPress={handlePickDocument}>
                     <View style={[localStyles.modalActionIcon, { backgroundColor: '#FEE2E2' }]}>
                         <IconFileText size={18} color="#DC2626" />
                     </View>
                     <View style={{ flex: 1 }}>
                         <Text style={localStyles.modalActionTitle}>Document & PDF</Text>
-                        <Text style={localStyles.modalActionSub}>Send invoice, price sheet, or legal contract</Text>
+                        <Text style={localStyles.modalActionSub}>Select document or invoice from storage</Text>
                     </View>
                 </TouchableOpacity>
 
@@ -1048,6 +1261,126 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
                         <Text style={localStyles.modalActionSub}>Canned responses for frequent business questions</Text>
                     </View>
                 </TouchableOpacity>
+            </SmoothModal>
+
+            {/* Smooth Modal: Device Picked Media Preview & Confirmation */}
+            <SmoothModal visible={pickedMediaPreviewVisible} onClose={() => setPickedMediaPreviewVisible(false)}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+                    <Text style={localStyles.modalSheetTitle}>
+                        {pickedMediaData?.type === 'image' && 'Send Device Photo'}
+                        {pickedMediaData?.type === 'video' && 'Send Device Video'}
+                        {pickedMediaData?.type === 'document' && 'Send Device Document'}
+                    </Text>
+                    <TouchableOpacity onPress={() => setPickedMediaPreviewVisible(false)} style={{ padding: 4 }}>
+                        <Text style={{ fontSize: 18, color: '#94A3B8', fontWeight: '700' }}>✕</Text>
+                    </TouchableOpacity>
+                </View>
+
+                {/* Media Preview Box */}
+                {pickedMediaData?.type === 'image' && (
+                    <View style={{ alignItems: 'center', marginBottom: 14 }}>
+                        <Image
+                            source={{ uri: pickedMediaData.uri }}
+                            style={{ width: '100%', height: 220, borderRadius: 12, backgroundColor: '#E2E8F0' }}
+                            resizeMode="contain"
+                        />
+                        <Text style={{ fontSize: 12, color: '#64748B', marginTop: 6 }} numberOfLines={1}>
+                            {pickedMediaData.name} {pickedMediaData.size ? `(${(pickedMediaData.size / 1024 / 1024).toFixed(2)} MB)` : ''}
+                        </Text>
+                    </View>
+                )}
+
+                {pickedMediaData?.type === 'video' && (
+                    <View
+                        style={{
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            height: 140,
+                            borderRadius: 12,
+                            backgroundColor: '#EFF6FF',
+                            borderWidth: 1,
+                            borderColor: '#BFDBFE',
+                            marginBottom: 14,
+                            padding: 16,
+                        }}>
+                        <View style={{ width: 52, height: 52, borderRadius: 26, backgroundColor: '#DBEAFE', alignItems: 'center', justifyContent: 'center', marginBottom: 8 }}>
+                            <IconVideo size={26} color="#1E40AF" />
+                        </View>
+                        <Text style={{ fontSize: 14, fontWeight: '700', color: '#1E293B', textAlign: 'center' }} numberOfLines={1}>
+                            {pickedMediaData.name}
+                        </Text>
+                        <Text style={{ fontSize: 12, color: '#64748B', marginTop: 2 }}>
+                            {pickedMediaData.size ? `${(pickedMediaData.size / 1024 / 1024).toFixed(2)} MB` : 'Video File'}
+                        </Text>
+                    </View>
+                )}
+
+                {pickedMediaData?.type === 'document' && (
+                    <View
+                        style={{
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            height: 140,
+                            borderRadius: 12,
+                            backgroundColor: '#FEF2F2',
+                            borderWidth: 1,
+                            borderColor: '#FECACA',
+                            marginBottom: 14,
+                            padding: 16,
+                        }}>
+                        <View style={{ width: 52, height: 52, borderRadius: 26, backgroundColor: '#FEE2E2', alignItems: 'center', justifyContent: 'center', marginBottom: 8 }}>
+                            <IconFileText size={26} color="#DC2626" />
+                        </View>
+                        <Text style={{ fontSize: 14, fontWeight: '700', color: '#1E293B', textAlign: 'center' }} numberOfLines={1}>
+                            {pickedMediaData.name}
+                        </Text>
+                        <Text style={{ fontSize: 12, color: '#64748B', marginTop: 2 }}>
+                            {pickedMediaData.size ? `${(pickedMediaData.size / 1024 / 1024).toFixed(2)} MB` : 'PDF Document'}
+                        </Text>
+                    </View>
+                )}
+
+                {/* Caption / Note input */}
+                <Text style={localStyles.inputLabel}>Add a caption (optional)</Text>
+                <TextInput
+                    style={[localStyles.styledInput, { height: 44 }]}
+                    placeholder="Type a caption or notes..."
+                    placeholderTextColor="#94A3B8"
+                    value={pickedMediaCaption}
+                    onChangeText={setPickedMediaCaption}
+                />
+
+                {/* Send / Cancel buttons */}
+                <View style={{ flexDirection: 'row', gap: 10, marginTop: 14 }}>
+                    <TouchableOpacity
+                        style={{
+                            flex: 1,
+                            height: 44,
+                            borderRadius: 10,
+                            borderWidth: 1,
+                            borderColor: '#E2E8F0',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                        }}
+                        onPress={() => setPickedMediaPreviewVisible(false)}>
+                        <Text style={{ color: '#64748B', fontWeight: '600', fontSize: 14 }}>Cancel</Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                        style={{
+                            flex: 1.5,
+                            height: 44,
+                            borderRadius: 10,
+                            backgroundColor: Colors.whatsappGreen,
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                        }}
+                        onPress={handleConfirmSendPickedMedia}>
+                        <Text style={{ color: '#FFFFFF', fontWeight: '700', fontSize: 14 }}>
+                            Send to {participant.name.split(' ')[0]}
+                        </Text>
+                    </TouchableOpacity>
+                </View>
             </SmoothModal>
 
             {/* Smooth Modal: Meta Templates */}

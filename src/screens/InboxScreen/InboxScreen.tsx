@@ -102,6 +102,9 @@ export const InboxScreen: React.FC<InboxScreenProps> = ({
     onOpenNotifications,
 }) => {
     const [conversations, setConversations] = useState<DynamicConversation[]>([]);
+    const [page, setPage] = useState(0);
+    const [hasMore, setHasMore] = useState(true);
+    const [isLoadingMore, setIsLoadingMore] = useState(false);
     const [activeTab, setActiveTab] = useState<'All' | 'Unread' | 'My Chats' | 'Groups'>('All');
     const [searchText, setSearchText] = useState('');
     const [isLoading, setIsLoading] = useState(false);
@@ -119,11 +122,13 @@ export const InboxScreen: React.FC<InboxScreenProps> = ({
         authService.getProfile().then(setProfile);
     }, []);
 
-    // Load dynamic conversations from Supabase
+    // Load dynamic conversations from Supabase (paginated: 24 per page)
     const loadConversations = useCallback(async (force = false) => {
         try {
-            const data = await crmService.fetchConversations(force);
+            const data = await crmService.fetchConversations(force, { page: 0, limit: 24 });
             setConversations(data);
+            setPage(0);
+            setHasMore(data.length === 24);
         } catch (err) {
             console.warn('Error loading conversations:', err);
         } finally {
@@ -131,6 +136,31 @@ export const InboxScreen: React.FC<InboxScreenProps> = ({
             setRefreshing(false);
         }
     }, []);
+
+    // Infinite scroll: fetch next 24 conversations
+    const handleLoadMore = useCallback(async () => {
+        if (isLoadingMore || !hasMore || isLoading || refreshing || searchText.trim().length > 0) return;
+        setIsLoadingMore(true);
+        try {
+            const nextPage = page + 1;
+            const more = await crmService.fetchConversations(true, { page: nextPage, limit: 24 });
+            if (!more || more.length < 24) {
+                setHasMore(false);
+            }
+            if (more && more.length > 0) {
+                setConversations((prev) => {
+                    const existingIds = new Set(prev.map((c) => c.id));
+                    const newItems = more.filter((c) => !existingIds.has(c.id));
+                    return [...prev, ...newItems];
+                });
+                setPage(nextPage);
+            }
+        } catch (err) {
+            console.warn('Error loading more conversations:', err);
+        } finally {
+            setIsLoadingMore(false);
+        }
+    }, [isLoadingMore, hasMore, isLoading, refreshing, searchText, page]);
 
     useEffect(() => {
         setIsLoading(true);
@@ -496,6 +526,15 @@ export const InboxScreen: React.FC<InboxScreenProps> = ({
                                     </TouchableOpacity>
                                 );
                             }}
+                            onEndReached={handleLoadMore}
+                            onEndReachedThreshold={0.25}
+                            ListFooterComponent={
+                                isLoadingMore ? (
+                                    <View style={{ paddingVertical: 14, alignItems: 'center', justifyContent: 'center' }}>
+                                        <ActivityIndicator size="small" color={Colors.primaryGreen} />
+                                    </View>
+                                ) : undefined
+                            }
                         />
                     )}
                 </View>
@@ -506,7 +545,6 @@ export const InboxScreen: React.FC<InboxScreenProps> = ({
                     activeOpacity={0.85}
                     onPress={() => setNewChatModalVisible(true)}>
                     <Text style={styles.fabPlus}>+</Text>
-                    <Text style={styles.fabCaret}>˅</Text>
                 </TouchableOpacity>
 
                 {/* Bottom Tab Bar */}

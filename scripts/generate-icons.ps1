@@ -65,3 +65,4 @@ Resize-And-Save $srcImage (Join-Path $assetsDir "logo.png") 512 $false
 
 $srcImage.Dispose()
 Write-Output "All icons successfully generated!"
+
