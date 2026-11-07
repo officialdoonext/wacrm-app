@@ -5,6 +5,7 @@ import {
     TextInput,
     TouchableOpacity,
     ScrollView,
+    RefreshControl,
     Image,
     StatusBar,
     KeyboardAvoidingView,
@@ -81,6 +82,8 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
     onOpenDeals,
 }) => {
     const [messages, setMessages] = useState<DynamicMessage[]>([]);
+    const [hasMoreOlder, setHasMoreOlder] = useState(true);
+    const [isLoadingOlder, setIsLoadingOlder] = useState(false);
     const [inputText, setInputText] = useState('');
     const [isLoading, setIsLoading] = useState(false);
     const [isSending, setIsSending] = useState(false);
@@ -162,14 +165,41 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
         setIsLoading(true);
 
         try {
-            const data = await crmService.fetchMessages(conversationId, force);
+            const data = await crmService.fetchMessages(conversationId, force, { limit: 24 });
             setMessages(data);
+            setHasMoreOlder(data.length === 24);
         } catch (err) {
             console.warn('Error loading messages:', err);
         } finally {
             setIsLoading(false);
         }
     }, [conversationId]);
+
+    // On scroll to top: fetch next 24 older messages
+    const loadOlderMessages = useCallback(async () => {
+        if (!hasMoreOlder || isLoadingOlder || messages.length === 0 || !conversationId) return;
+        setIsLoadingOlder(true);
+
+        try {
+            const oldestMessage = messages[0];
+            const olderSlice = await crmService.fetchMessages(conversationId, true, {
+                limit: 24,
+                beforeTimestamp: oldestMessage.created_at,
+            });
+
+            if (olderSlice.length < 24) {
+                setHasMoreOlder(false);
+            }
+
+            if (olderSlice.length > 0) {
+                setMessages((prev) => [...olderSlice, ...prev]);
+            }
+        } catch (err) {
+            console.warn('Error loading older messages:', err);
+        } finally {
+            setIsLoadingOlder(false);
+        }
+    }, [hasMoreOlder, isLoadingOlder, messages, conversationId]);
 
     useEffect(() => {
         loadMessages();
@@ -520,7 +550,32 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
                             style={localStyles.scrollArea}
                             contentContainerStyle={localStyles.scrollContent}
                             showsVerticalScrollIndicator={false}
-                            keyboardShouldPersistTaps="handled">
+                            keyboardShouldPersistTaps="handled"
+                            onScroll={({ nativeEvent }) => {
+                                if (nativeEvent.contentOffset.y <= 15 && hasMoreOlder && !isLoadingOlder) {
+                                    loadOlderMessages();
+                                }
+                            }}
+                            scrollEventThrottle={32}
+                            refreshControl={
+                                hasMoreOlder ? (
+                                    <RefreshControl
+                                        refreshing={isLoadingOlder}
+                                        onRefresh={loadOlderMessages}
+                                        tintColor={Colors.whatsappGreen}
+                                        title="Loading older messages..."
+                                    />
+                                ) : undefined
+                            }>
+
+                            {isLoadingOlder && (
+                                <View style={{ paddingVertical: 10, alignItems: 'center' }}>
+                                    <ActivityIndicator size="small" color={Colors.whatsappGreen} />
+                                    <Text style={{ fontSize: 11, color: '#9CA3AF', marginTop: 4 }}>
+                                        Loading earlier messages...
+                                    </Text>
+                                </View>
+                            )}
 
                             {messages.length === 0 && (
                                 <View style={localStyles.emptyContainer}>

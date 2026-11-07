@@ -248,7 +248,13 @@ class CRMService {
   // -------------------------------------------------------------
   // MESSAGES (ACTIVE CHAT THREAD)
   // -------------------------------------------------------------
-  async fetchMessages(conversationId: string, forceRefresh = false): Promise<DynamicMessage[]> {
+  async fetchMessages(
+    conversationId: string,
+    forceRefresh = false,
+    options?: { limit?: number; beforeTimestamp?: string }
+  ): Promise<DynamicMessage[]> {
+    const limit = options?.limit ?? 24;
+    const beforeTimestamp = options?.beforeTimestamp;
     if (!forceRefresh && messagesCache[conversationId]?.length) {
       this.refreshMessagesInBackground(conversationId);
       return messagesCache[conversationId];
@@ -267,7 +273,7 @@ class CRMService {
       }
 
       if (data) {
-        const fetchedMessages = data.map((m: any) => ({
+        const fetchedMessages = [...data].reverse().map((m: any) => ({
           id: m.id,
           conversation_id: m.conversation_id,
           sender_type: m.sender_type,
