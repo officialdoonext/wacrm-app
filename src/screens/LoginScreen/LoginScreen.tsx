@@ -10,9 +10,9 @@ import {
     Platform,
     KeyboardAvoidingView,
     ActivityIndicator,
-    Modal,
     Alert,
 } from 'react-native';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { styles } from './styles';
 import { Colors } from '../../theme/colors';
@@ -231,13 +231,13 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
         <SafeAreaView style={styles.safeArea} edges={['top', 'bottom', 'left', 'right']}>
             <StatusBar barStyle="dark-content" />
 
-            <KeyboardAvoidingView
-                style={{ flex: 1 }}
-                behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-                <ScrollView
-                    contentContainerStyle={styles.scrollContainer}
-                    showsVerticalScrollIndicator={false}
-                    keyboardShouldPersistTaps="handled">
+            <KeyboardAwareScrollView
+                enableOnAndroid={true}
+                extraScrollHeight={Platform.select({ ios: 20, android: 40 })}
+                keyboardShouldPersistTaps="handled"
+                enableAutomaticScroll={true}
+                contentContainerStyle={styles.scrollContainer}
+                showsVerticalScrollIndicator={false}>
 
                     {/* Ambient Background Circles */}
                     <View style={styles.bgCircleTopRight} />
@@ -556,8 +556,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
                         </TouchableOpacity>
                     </View>
 
-                </ScrollView>
-            </KeyboardAvoidingView>
+                </KeyboardAwareScrollView>
 
             {/* Smooth Modal: Forgot Password 2-Step OTP */}
             <SmoothModal visible={forgotModalVisible} onClose={() => setForgotModalVisible(false)}>

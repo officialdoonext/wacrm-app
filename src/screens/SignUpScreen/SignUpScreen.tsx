@@ -4,14 +4,13 @@ import {
     Text,
     TextInput,
     TouchableOpacity,
-    ScrollView,
     StatusBar,
     StyleSheet,
     ActivityIndicator,
-    KeyboardAvoidingView,
     Platform,
     Alert,
 } from 'react-native';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Colors } from '../../theme/colors';
 import { AppHeader } from '../../components/AppHeader';
@@ -104,13 +103,13 @@ export const SignUpScreen: React.FC<SignUpScreenProps> = ({
                 {/* Standard Unified Header */}
                 <AppHeader onBack={onNavigateLogin} title="Create Workspace" />
 
-                <KeyboardAvoidingView
-                    behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-                    style={{ flex: 1 }}>
-                    <ScrollView
-                        showsVerticalScrollIndicator={false}
-                        contentContainerStyle={styles.scrollContent}
-                        keyboardShouldPersistTaps="handled">
+                <KeyboardAwareScrollView
+                    enableOnAndroid={true}
+                    extraScrollHeight={Platform.select({ ios: 20, android: 40 })}
+                    keyboardShouldPersistTaps="handled"
+                    enableAutomaticScroll={true}
+                    showsVerticalScrollIndicator={false}
+                    contentContainerStyle={styles.scrollContent}>
                         <Text style={styles.headingTitle}>Get Started with WACRM</Text>
                         <Text style={styles.headingSubtitle}>
                             Create your official Meta WhatsApp Business multi-agent CRM workspace.
@@ -230,8 +229,7 @@ export const SignUpScreen: React.FC<SignUpScreenProps> = ({
                                 <Text style={styles.footerLink}>Sign In</Text>
                             </TouchableOpacity>
                         </View>
-                    </ScrollView>
-                </KeyboardAvoidingView>
+                    </KeyboardAwareScrollView>
             </View>
         </SafeAreaView>
     );

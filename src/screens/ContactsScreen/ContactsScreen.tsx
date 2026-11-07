@@ -10,8 +10,10 @@ import {
     ScrollView,
     ActivityIndicator,
     Alert,
+    Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import { styles } from './styles';
 import { Colors } from '../../theme/colors';
 import { PaperPlaneIcon } from '../../components/PaperPlaneIcon';
@@ -725,130 +727,137 @@ export const ContactsScreen: React.FC<ContactsScreenProps> = ({
 
             {/* Smooth Modal: Add New Contact */}
             <SmoothModal visible={addModalVisible} onClose={() => setAddModalVisible(false)}>
-                <Text style={{ fontSize: 18, fontWeight: '700', color: '#1E293B', marginBottom: 4 }}>
-                    Create New Contact
-                </Text>
-                <Text style={{ fontSize: 13, color: '#64748B', marginBottom: 18 }}>
-                    Add details to store in your WhatsApp CRM directory.
-                </Text>
+                <KeyboardAwareScrollView
+                    enableOnAndroid={true}
+                    extraScrollHeight={Platform.select({ ios: 20, android: 40 })}
+                    keyboardShouldPersistTaps="handled"
+                    enableAutomaticScroll={true}
+                    showsVerticalScrollIndicator={false}>
+                    <Text style={{ fontSize: 18, fontWeight: '700', color: '#1E293B', marginBottom: 4 }}>
+                        Create New Contact
+                    </Text>
+                    <Text style={{ fontSize: 13, color: '#64748B', marginBottom: 18 }}>
+                        Add details to store in your WhatsApp CRM directory.
+                    </Text>
 
-                <Text style={{ fontSize: 12, fontWeight: '600', color: '#475569', marginBottom: 4 }}>
-                    Full Name *
-                </Text>
-                <TextInput
-                    style={{
-                        height: 42,
-                        borderWidth: 1,
-                        borderColor: '#E2E8F0',
-                        borderRadius: 8,
-                        paddingHorizontal: 12,
-                        marginBottom: 12,
-                        fontSize: 14,
-                        color: '#1E293B',
-                    }}
-                    placeholder="e.g. Ramesh Patel"
-                    placeholderTextColor="#94A3B8"
-                    value={nameInput}
-                    onChangeText={setNameInput}
-                />
-
-                <Text style={{ fontSize: 12, fontWeight: '600', color: '#475569', marginBottom: 4 }}>
-                    WhatsApp Phone (E.164) *
-                </Text>
-                <TextInput
-                    style={{
-                        height: 42,
-                        borderWidth: 1,
-                        borderColor: '#E2E8F0',
-                        borderRadius: 8,
-                        paddingHorizontal: 12,
-                        marginBottom: 12,
-                        fontSize: 14,
-                        color: '#1E293B',
-                    }}
-                    placeholder="+91 98765 43210"
-                    placeholderTextColor="#94A3B8"
-                    keyboardType="phone-pad"
-                    value={phoneInput}
-                    onChangeText={setPhoneInput}
-                />
-
-                <Text style={{ fontSize: 12, fontWeight: '600', color: '#475569', marginBottom: 4 }}>
-                    Company / Organization
-                </Text>
-                <TextInput
-                    style={{
-                        height: 42,
-                        borderWidth: 1,
-                        borderColor: '#E2E8F0',
-                        borderRadius: 8,
-                        paddingHorizontal: 12,
-                        marginBottom: 12,
-                        fontSize: 14,
-                        color: '#1E293B',
-                    }}
-                    placeholder="e.g. Patel Exports"
-                    placeholderTextColor="#94A3B8"
-                    value={companyInput}
-                    onChangeText={setCompanyInput}
-                />
-
-                <Text style={{ fontSize: 12, fontWeight: '600', color: '#475569', marginBottom: 4 }}>
-                    Email Address
-                </Text>
-                <TextInput
-                    style={{
-                        height: 42,
-                        borderWidth: 1,
-                        borderColor: '#E2E8F0',
-                        borderRadius: 8,
-                        paddingHorizontal: 12,
-                        marginBottom: 20,
-                        fontSize: 14,
-                        color: '#1E293B',
-                    }}
-                    placeholder="e.g. ramesh@example.com"
-                    placeholderTextColor="#94A3B8"
-                    keyboardType="email-address"
-                    value={emailInput}
-                    onChangeText={setEmailInput}
-                />
-
-                <View style={{ flexDirection: 'row', gap: 12 }}>
-                    <TouchableOpacity
+                    <Text style={{ fontSize: 12, fontWeight: '600', color: '#475569', marginBottom: 4 }}>
+                        Full Name *
+                    </Text>
+                    <TextInput
                         style={{
-                            flex: 1,
-                            height: 44,
-                            borderRadius: 10,
+                            height: 42,
                             borderWidth: 1,
                             borderColor: '#E2E8F0',
-                            alignItems: 'center',
-                            justifyContent: 'center',
+                            borderRadius: 8,
+                            paddingHorizontal: 12,
+                            marginBottom: 12,
+                            fontSize: 14,
+                            color: '#1E293B',
                         }}
-                        onPress={() => setAddModalVisible(false)}>
-                        <Text style={{ color: '#64748B', fontWeight: '600', fontSize: 14 }}>Cancel</Text>
-                    </TouchableOpacity>
+                        placeholder="e.g. Ramesh Patel"
+                        placeholderTextColor="#94A3B8"
+                        value={nameInput}
+                        onChangeText={setNameInput}
+                    />
 
-                    <TouchableOpacity
+                    <Text style={{ fontSize: 12, fontWeight: '600', color: '#475569', marginBottom: 4 }}>
+                        WhatsApp Phone (E.164) *
+                    </Text>
+                    <TextInput
                         style={{
-                            flex: 1,
-                            height: 44,
-                            borderRadius: 10,
-                            backgroundColor: Colors.primaryGreen,
-                            alignItems: 'center',
-                            justifyContent: 'center',
+                            height: 42,
+                            borderWidth: 1,
+                            borderColor: '#E2E8F0',
+                            borderRadius: 8,
+                            paddingHorizontal: 12,
+                            marginBottom: 12,
+                            fontSize: 14,
+                            color: '#1E293B',
                         }}
-                        disabled={isSaving}
-                        onPress={handleCreateContact}>
-                        {isSaving ? (
-                            <ActivityIndicator color="#FFFFFF" size="small" />
-                        ) : (
-                            <Text style={{ color: '#FFFFFF', fontWeight: '700', fontSize: 14 }}>
-                                Save Contact
-                            </Text>
-                        )}
-                    </TouchableOpacity>
-                </View>
+                        placeholder="+91 98765 43210"
+                        placeholderTextColor="#94A3B8"
+                        keyboardType="phone-pad"
+                        value={phoneInput}
+                        onChangeText={setPhoneInput}
+                    />
+
+                    <Text style={{ fontSize: 12, fontWeight: '600', color: '#475569', marginBottom: 4 }}>
+                        Company / Organization
+                    </Text>
+                    <TextInput
+                        style={{
+                            height: 42,
+                            borderWidth: 1,
+                            borderColor: '#E2E8F0',
+                            borderRadius: 8,
+                            paddingHorizontal: 12,
+                            marginBottom: 12,
+                            fontSize: 14,
+                            color: '#1E293B',
+                        }}
+                        placeholder="e.g. Patel Exports"
+                        placeholderTextColor="#94A3B8"
+                        value={companyInput}
+                        onChangeText={setCompanyInput}
+                    />
+
+                    <Text style={{ fontSize: 12, fontWeight: '600', color: '#475569', marginBottom: 4 }}>
+                        Email Address
+                    </Text>
+                    <TextInput
+                        style={{
+                            height: 42,
+                            borderWidth: 1,
+                            borderColor: '#E2E8F0',
+                            borderRadius: 8,
+                            paddingHorizontal: 12,
+                            marginBottom: 20,
+                            fontSize: 14,
+                            color: '#1E293B',
+                        }}
+                        placeholder="e.g. ramesh@example.com"
+                        placeholderTextColor="#94A3B8"
+                        keyboardType="email-address"
+                        value={emailInput}
+                        onChangeText={setEmailInput}
+                    />
+
+                    <View style={{ flexDirection: 'row', gap: 12 }}>
+                        <TouchableOpacity
+                            style={{
+                                flex: 1,
+                                height: 44,
+                                borderRadius: 10,
+                                borderWidth: 1,
+                                borderColor: '#E2E8F0',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                            }}
+                            onPress={() => setAddModalVisible(false)}>
+                            <Text style={{ color: '#64748B', fontWeight: '600', fontSize: 14 }}>Cancel</Text>
+                        </TouchableOpacity>
+
+                        <TouchableOpacity
+                            style={{
+                                flex: 1,
+                                height: 44,
+                                borderRadius: 10,
+                                backgroundColor: Colors.primaryGreen,
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                            }}
+                            disabled={isSaving}
+                            onPress={handleCreateContact}>
+                            {isSaving ? (
+                                <ActivityIndicator color="#FFFFFF" size="small" />
+                            ) : (
+                                <Text style={{ color: '#FFFFFF', fontWeight: '700', fontSize: 14 }}>
+                                    Save Contact
+                                </Text>
+                            )}
+                        </TouchableOpacity>
+                    </View>
+                </KeyboardAwareScrollView>
             </SmoothModal>
 
             {/* Smooth Modal: CSV Contact Import Wizard (Module 2.4.3) */}

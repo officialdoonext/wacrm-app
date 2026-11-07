@@ -14,6 +14,7 @@ import {
     StyleSheet,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import { styles } from './styles';
 import { Colors } from '../../theme/colors';
 import { AppHeader } from '../../components/AppHeader';
@@ -1005,7 +1006,13 @@ export const AutomationScreen: React.FC<AutomationScreenProps> = ({ onNavigateTa
                     </TouchableOpacity>
                 </View>
 
-                <ScrollView style={{ maxHeight: 460 }} showsVerticalScrollIndicator={false}>
+                <KeyboardAwareScrollView
+                    enableOnAndroid={true}
+                    extraScrollHeight={Platform.select({ ios: 20, android: 40 })}
+                    keyboardShouldPersistTaps="handled"
+                    enableAutomaticScroll={true}
+                    style={{ maxHeight: 460 }}
+                    showsVerticalScrollIndicator={false}>
                     {/* Automation Title & Description */}
                     <Text style={{ fontSize: 12, fontWeight: '700', color: '#334155', marginBottom: 4 }}>
                         Automation Title *
@@ -1352,7 +1359,7 @@ export const AutomationScreen: React.FC<AutomationScreenProps> = ({ onNavigateTa
                             );
                         })
                     )}
-                </ScrollView>
+                </KeyboardAwareScrollView>
 
                 {/* Builder Actions Footer */}
                 <View style={{ flexDirection: 'row', gap: 10, marginTop: 12 }}>

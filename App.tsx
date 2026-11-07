@@ -1,5 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect } from 'react';
+import { enableScreens } from 'react-native-screens';
+import { NavigationContainer } from '@react-navigation/native';
+import { createNativeStackNavigator, NativeStackScreenProps } from '@react-navigation/native-stack';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+
 import { SplashScreen } from './src/screens/SplashScreen/SplashScreen';
 import { WelcomeScreen } from './src/screens/WelcomeScreen/WelcomeScreen';
 import { LoginScreen } from './src/screens/LoginScreen/LoginScreen';
@@ -9,7 +13,7 @@ import { DashboardScreen } from './src/screens/DashboardScreen/DashboardScreen';
 import { InboxScreen } from './src/screens/InboxScreen/InboxScreen';
 import { ChatScreen, ChatParticipant } from './src/screens/ChatScreen/ChatScreen';
 import { AutomationScreen } from './src/screens/AutomationScreen/AutomationScreen';
-import { ContactsScreen } from './src/screens/ContactsScreen/ContactsScreen';
+import { ContactsScreen, ContactItem } from './src/screens/ContactsScreen/ContactsScreen';
 import { PipelinesScreen } from './src/screens/PipelinesScreen/PipelinesScreen';
 import { CommerceScreen } from './src/screens/CommerceScreen/CommerceScreen';
 import { FlowsScreen } from './src/screens/FlowsScreen/FlowsScreen';
@@ -17,33 +21,38 @@ import { AgentsScreen } from './src/screens/AgentsScreen/AgentsScreen';
 import { NotificationsScreen } from './src/screens/NotificationsScreen/NotificationsScreen';
 import { BroadcastScreen } from './src/screens/BroadcastScreen/BroadcastScreen';
 import { MoreScreen } from './src/screens/MoreScreen/MoreScreen';
-import { SmoothScreenTransition } from './src/components/SmoothScreenTransition';
 import { authService } from './src/services/supabase';
 
-type ScreenName =
-  | 'splash'
-  | 'welcome'
-  | 'login'
-  | 'signup'
-  | 'onboarding'
-  | 'dashboard'
-  | 'inbox'
-  | 'chat'
-  | 'automation'
-  | 'contacts'
-  | 'pipelines'
-  | 'commerce'
-  | 'flows'
-  | 'agents'
-  | 'notifications'
-  | 'broadcast'
-  | 'more';
+// Enable native hardware screens for optimal memory & 60fps performance
+enableScreens();
 
-export default function App(): React.JSX.Element {
-  const [currentScreen, setCurrentScreen] = useState<ScreenName>('splash');
-  const [selectedChat, setSelectedChat] = useState<ChatParticipant | null>(null);
-  const [userEmail, setUserEmail] = useState('');
+export type RootStackParamList = {
+  Splash: undefined;
+  Welcome: undefined;
+  Login: undefined;
+  SignUp: undefined;
+  Onboarding: { email?: string } | undefined;
+  Dashboard: undefined;
+  Inbox: undefined;
+  Chat: { participant?: ChatParticipant } | undefined;
+  Automation: undefined;
+  Contacts: undefined;
+  Pipelines: undefined;
+  Commerce: undefined;
+  Flows: undefined;
+  Agents: undefined;
+  Notifications: undefined;
+  Broadcast: undefined;
+  More: undefined;
+};
 
+const Stack = createNativeStackNavigator<RootStackParamList>();
+
+// -------------------------------------------------------------
+// Screen Wrappers with Native Navigation Integration
+// -------------------------------------------------------------
+
+function SplashScreenWrapper({ navigation }: NativeStackScreenProps<RootStackParamList, 'Splash'>) {
   useEffect(() => {
     let isMounted = true;
     const checkSessionAndRoute = async () => {
@@ -51,185 +60,228 @@ export default function App(): React.JSX.Element {
         const session = await authService.getSession();
         if (isMounted) {
           if (session?.user) {
-            setUserEmail(session.user.email || '');
-            setCurrentScreen('inbox');
+            navigation.replace('Inbox');
           } else {
-            setCurrentScreen('welcome');
+            navigation.replace('Welcome');
           }
         }
       } catch {
-        if (isMounted) setCurrentScreen('welcome');
+        if (isMounted) navigation.replace('Welcome');
       }
     };
 
     const timer = setTimeout(() => {
       checkSessionAndRoute();
-    }, 2200);
+    }, 1800);
 
     return () => {
       isMounted = false;
       clearTimeout(timer);
     };
-  }, []);
+  }, [navigation]);
 
-  const handleTabNavigation = (
-    tab: 'Inbox' | 'Automation' | 'Contacts' | 'Broadcast' | 'More'
-  ) => {
-    if (tab === 'Inbox') setCurrentScreen('inbox');
-    if (tab === 'Automation') setCurrentScreen('automation');
-    if (tab === 'Contacts') setCurrentScreen('contacts');
-    if (tab === 'Broadcast') setCurrentScreen('broadcast');
-    if (tab === 'More') setCurrentScreen('more');
-  };
+  return <SplashScreen onFinish={() => navigation.replace('Welcome')} />;
+}
 
+function WelcomeScreenWrapper({ navigation }: NativeStackScreenProps<RootStackParamList, 'Welcome'>) {
+  return (
+    <WelcomeScreen
+      onNavigateLogin={() => navigation.navigate('Login')}
+      onNavigateSignUp={() => navigation.navigate('SignUp')}
+    />
+  );
+}
+
+function LoginScreenWrapper({ navigation }: NativeStackScreenProps<RootStackParamList, 'Login'>) {
+  return (
+    <LoginScreen
+      onNavigateRegister={() => navigation.navigate('SignUp')}
+      onLoginSuccess={(email) => {
+        navigation.replace('Inbox');
+      }}
+    />
+  );
+}
+
+function SignUpScreenWrapper({ navigation }: NativeStackScreenProps<RootStackParamList, 'SignUp'>) {
+  return (
+    <SignUpScreen
+      onNavigateLogin={() => navigation.navigate('Login')}
+      onSignUpSuccess={(email) => navigation.navigate('Onboarding', { email })}
+    />
+  );
+}
+
+function OnboardingScreenWrapper({ navigation, route }: NativeStackScreenProps<RootStackParamList, 'Onboarding'>) {
+  return (
+    <OnboardingScreen
+      email={route.params?.email || ''}
+      onAccessGranted={() => navigation.replace('Inbox')}
+      onLogout={async () => {
+        await authService.signOut();
+        navigation.replace('Login');
+      }}
+    />
+  );
+}
+
+function DashboardScreenWrapper({ navigation }: NativeStackScreenProps<RootStackParamList, 'Dashboard'>) {
+  return (
+    <DashboardScreen
+      onNavigateTab={(tab) => navigation.navigate(tab)}
+      onQuickAction={(action) => {
+        if (action === 'new_chat') navigation.navigate('Inbox');
+        if (action === 'new_broadcast') navigation.navigate('Broadcast');
+        if (action === 'new_contact') navigation.navigate('Contacts');
+        if (action === 'new_deal') navigation.navigate('Pipelines');
+      }}
+      onOpenNotifications={() => navigation.navigate('Notifications')}
+    />
+  );
+}
+
+function InboxScreenWrapper({ navigation }: NativeStackScreenProps<RootStackParamList, 'Inbox'>) {
+  return (
+    <InboxScreen
+      onSelectChat={(chat) => navigation.navigate('Chat', { participant: chat })}
+      onNavigateTab={(tab) => navigation.navigate(tab)}
+      onOpenDashboard={() => navigation.navigate('Dashboard')}
+      onOpenNotifications={() => navigation.navigate('Notifications')}
+    />
+  );
+}
+
+function ChatScreenWrapper({ navigation, route }: NativeStackScreenProps<RootStackParamList, 'Chat'>) {
+  return (
+    <ChatScreen
+      participant={route.params?.participant}
+      onBack={() => navigation.goBack()}
+      onOpenDeals={() => navigation.navigate('Pipelines')}
+    />
+  );
+}
+
+function AutomationScreenWrapper({ navigation }: NativeStackScreenProps<RootStackParamList, 'Automation'>) {
+  return <AutomationScreen onNavigateTab={(tab) => navigation.navigate(tab)} />;
+}
+
+function ContactsScreenWrapper({ navigation }: NativeStackScreenProps<RootStackParamList, 'Contacts'>) {
+  return (
+    <ContactsScreen
+      onNavigateTab={(tab) => navigation.navigate(tab)}
+      onSelectContact={(contact: ContactItem) => {
+        navigation.navigate('Chat', {
+          participant: {
+            id: contact.id,
+            conversationId: contact.conversationId,
+            contactId: contact.contactId || contact.id,
+            name: contact.name,
+            phone: contact.phone,
+            avatarUrl: contact.avatarUrl,
+            tag: contact.tag,
+          },
+        });
+      }}
+    />
+  );
+}
+
+function PipelinesScreenWrapper({ navigation }: NativeStackScreenProps<RootStackParamList, 'Pipelines'>) {
+  return (
+    <PipelinesScreen
+      onBack={() => navigation.goBack()}
+      onOpenChat={(contactName, phone) => {
+        navigation.navigate('Chat', {
+          participant: {
+            name: contactName,
+            phone,
+            tag: { label: 'Lead', bg: '#DCFCE7', color: '#166534' },
+          },
+        });
+      }}
+    />
+  );
+}
+
+function CommerceScreenWrapper({ navigation }: NativeStackScreenProps<RootStackParamList, 'Commerce'>) {
+  return (
+    <CommerceScreen
+      onBack={() => navigation.goBack()}
+      onSendProductInChat={() => {
+        navigation.navigate('Inbox');
+      }}
+    />
+  );
+}
+
+function FlowsScreenWrapper({ navigation }: NativeStackScreenProps<RootStackParamList, 'Flows'>) {
+  return <FlowsScreen onBack={() => navigation.goBack()} />;
+}
+
+function AgentsScreenWrapper({ navigation }: NativeStackScreenProps<RootStackParamList, 'Agents'>) {
+  return <AgentsScreen onBack={() => navigation.goBack()} />;
+}
+
+function NotificationsScreenWrapper({ navigation }: NativeStackScreenProps<RootStackParamList, 'Notifications'>) {
+  return <NotificationsScreen onBack={() => navigation.goBack()} />;
+}
+
+function BroadcastScreenWrapper({ navigation }: NativeStackScreenProps<RootStackParamList, 'Broadcast'>) {
+  return <BroadcastScreen onNavigateTab={(tab) => navigation.navigate(tab)} />;
+}
+
+function MoreScreenWrapper({ navigation }: NativeStackScreenProps<RootStackParamList, 'More'>) {
+  return (
+    <MoreScreen
+      onBack={() => navigation.goBack()}
+      onNavigateTab={(tab) => navigation.navigate(tab)}
+      onLogout={async () => {
+        await authService.signOut();
+        navigation.replace('Login');
+      }}
+      onOpenPipelines={() => navigation.navigate('Pipelines')}
+      onOpenCommerce={() => navigation.navigate('Commerce')}
+      onOpenFlows={() => navigation.navigate('Flows')}
+      onOpenAgents={() => navigation.navigate('Agents')}
+      onOpenDashboard={() => navigation.navigate('Dashboard')}
+    />
+  );
+}
+
+// -------------------------------------------------------------
+// Main Application Root
+// -------------------------------------------------------------
+
+export default function App(): React.JSX.Element {
   return (
     <SafeAreaProvider>
-      <SmoothScreenTransition key={currentScreen}>
-        {currentScreen === 'splash' && <SplashScreen />}
-
-        {currentScreen === 'welcome' && (
-          <WelcomeScreen
-            onNavigateLogin={() => setCurrentScreen('login')}
-            onNavigateSignUp={() => setCurrentScreen('signup')}
-          />
-        )}
-
-        {currentScreen === 'login' && (
-          <LoginScreen
-            onNavigateRegister={() => setCurrentScreen('signup')}
-            onLoginSuccess={(email) => {
-              setUserEmail(email);
-              setCurrentScreen('inbox');
-            }}
-          />
-        )}
-
-        {currentScreen === 'signup' && (
-          <SignUpScreen
-            onNavigateLogin={() => setCurrentScreen('login')}
-            onSignUpSuccess={(email) => {
-              setUserEmail(email);
-              setCurrentScreen('onboarding');
-            }}
-          />
-        )}
-
-        {currentScreen === 'onboarding' && (
-          <OnboardingScreen
-            email={userEmail}
-            onAccessGranted={() => setCurrentScreen('inbox')}
-            onLogout={async () => {
-              await authService.signOut();
-              setCurrentScreen('login');
-            }}
-          />
-        )}
-
-        {currentScreen === 'dashboard' && (
-          <DashboardScreen
-            onNavigateTab={handleTabNavigation}
-            onQuickAction={(action) => {
-              if (action === 'new_chat') setCurrentScreen('inbox');
-              if (action === 'new_broadcast') setCurrentScreen('broadcast');
-              if (action === 'new_contact') setCurrentScreen('contacts');
-              if (action === 'new_deal') setCurrentScreen('pipelines');
-            }}
-          />
-        )}
-
-        {currentScreen === 'inbox' && (
-          <InboxScreen
-            onSelectChat={(chat) => {
-              setSelectedChat(chat);
-              setCurrentScreen('chat');
-            }}
-            onNavigateTab={handleTabNavigation}
-            onOpenDashboard={() => setCurrentScreen('dashboard')}
-            onOpenNotifications={() => setCurrentScreen('notifications')}
-          />
-        )}
-
-        {currentScreen === 'chat' && (
-          <ChatScreen
-            participant={selectedChat || undefined}
-            onBack={() => setCurrentScreen('inbox')}
-            onOpenDeals={() => setCurrentScreen('pipelines')}
-          />
-        )}
-
-        {currentScreen === 'contacts' && (
-          <ContactsScreen
-            onNavigateTab={handleTabNavigation}
-            onSelectContact={(contact) => {
-              setSelectedChat(contact);
-              setCurrentScreen('chat');
-            }}
-          />
-        )}
-
-        {currentScreen === 'pipelines' && (
-          <PipelinesScreen
-            onBack={() => setCurrentScreen('inbox')}
-            onOpenChat={(contactName, phone) => {
-              setSelectedChat({
-                name: contactName,
-                phone,
-                tag: { label: 'Lead', bg: '#DCFCE7', color: '#166534' },
-              });
-              setCurrentScreen('chat');
-            }}
-          />
-        )}
-
-        {currentScreen === 'commerce' && (
-          <CommerceScreen
-            onBack={() => setCurrentScreen('more')}
-            onSendProductInChat={(prod) => {
-              if (selectedChat) {
-                setCurrentScreen('chat');
-              } else {
-                setCurrentScreen('inbox');
-              }
-            }}
-          />
-        )}
-
-        {currentScreen === 'automation' && (
-          <AutomationScreen onNavigateTab={handleTabNavigation} />
-        )}
-
-        {currentScreen === 'flows' && (
-          <FlowsScreen onBack={() => setCurrentScreen('more')} />
-        )}
-
-        {currentScreen === 'agents' && (
-          <AgentsScreen onBack={() => setCurrentScreen('more')} />
-        )}
-
-        {currentScreen === 'notifications' && (
-          <NotificationsScreen onBack={() => setCurrentScreen('inbox')} />
-        )}
-
-        {currentScreen === 'broadcast' && (
-          <BroadcastScreen onNavigateTab={handleTabNavigation} />
-        )}
-
-        {currentScreen === 'more' && (
-          <MoreScreen
-            onBack={() => setCurrentScreen('inbox')}
-            onNavigateTab={handleTabNavigation}
-            onLogout={async () => {
-              await authService.signOut();
-              setCurrentScreen('login');
-            }}
-            onOpenPipelines={() => setCurrentScreen('pipelines')}
-            onOpenCommerce={() => setCurrentScreen('commerce')}
-            onOpenFlows={() => setCurrentScreen('flows')}
-            onOpenAgents={() => setCurrentScreen('agents')}
-            onOpenDashboard={() => setCurrentScreen('dashboard')}
-          />
-        )}
-      </SmoothScreenTransition>
+      <NavigationContainer>
+        <Stack.Navigator
+          initialRouteName="Splash"
+          screenOptions={{
+            headerShown: false,
+            animation: 'slide_from_right',
+            gestureEnabled: true,
+          }}>
+          <Stack.Screen name="Splash" component={SplashScreenWrapper} />
+          <Stack.Screen name="Welcome" component={WelcomeScreenWrapper} />
+          <Stack.Screen name="Login" component={LoginScreenWrapper} />
+          <Stack.Screen name="SignUp" component={SignUpScreenWrapper} />
+          <Stack.Screen name="Onboarding" component={OnboardingScreenWrapper} />
+          <Stack.Screen name="Dashboard" component={DashboardScreenWrapper} />
+          <Stack.Screen name="Inbox" component={InboxScreenWrapper} />
+          <Stack.Screen name="Chat" component={ChatScreenWrapper} />
+          <Stack.Screen name="Automation" component={AutomationScreenWrapper} />
+          <Stack.Screen name="Contacts" component={ContactsScreenWrapper} />
+          <Stack.Screen name="Pipelines" component={PipelinesScreenWrapper} />
+          <Stack.Screen name="Commerce" component={CommerceScreenWrapper} />
+          <Stack.Screen name="Flows" component={FlowsScreenWrapper} />
+          <Stack.Screen name="Agents" component={AgentsScreenWrapper} />
+          <Stack.Screen name="Notifications" component={NotificationsScreenWrapper} />
+          <Stack.Screen name="Broadcast" component={BroadcastScreenWrapper} />
+          <Stack.Screen name="More" component={MoreScreenWrapper} />
+        </Stack.Navigator>
+      </NavigationContainer>
     </SafeAreaProvider>
   );
 }
