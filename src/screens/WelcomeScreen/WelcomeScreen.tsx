@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
     View,
     Text,
@@ -13,6 +13,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { styles } from './styles';
 import { Colors } from '../../theme/colors';
 import { PaperPlaneIcon } from '../../components/PaperPlaneIcon';
+import { BrandLogo } from '../../components/BrandLogo';
 import {
     LightningIcon,
     ChartBarIcon,
@@ -129,20 +130,22 @@ const SLIDES_DATA: SlideItem[] = [
 
 interface WelcomeScreenProps {
     onNavigateLogin?: () => void;
+    onNavigateSignUp?: () => void;
 }
 
-export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onNavigateLogin }) => {
+export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onNavigateLogin, onNavigateSignUp }) => {
     const [currentIndex, setCurrentIndex] = useState(0);
     const scrollX = useRef(new Animated.Value(0)).current;
     const flatListRef = useRef<any>(null);
     const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-    useEffect(() => {
-        startAutoSlide();
-        return () => stopAutoSlide();
-    }, [currentIndex]);
+    const stopAutoSlide = useCallback(() => {
+        if (timerRef.current) {
+            clearTimeout(timerRef.current);
+        }
+    }, []);
 
-    const startAutoSlide = () => {
+    const startAutoSlide = useCallback(() => {
         stopAutoSlide();
         timerRef.current = setTimeout(() => {
             const nextIndex = (currentIndex + 1) % SLIDES_DATA.length;
@@ -152,13 +155,12 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onNavigateLogin })
             });
             setCurrentIndex(nextIndex);
         }, 4000);
-    };
+    }, [currentIndex, stopAutoSlide]);
 
-    const stopAutoSlide = () => {
-        if (timerRef.current) {
-            clearTimeout(timerRef.current);
-        }
-    };
+    useEffect(() => {
+        startAutoSlide();
+        return () => stopAutoSlide();
+    }, [startAutoSlide, stopAutoSlide]);
 
     const onMomentumScrollEnd = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
         const offsetX = e.nativeEvent.contentOffset.x;
@@ -209,8 +211,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onNavigateLogin })
             {/* Top Header Bar */}
             <View style={styles.topBar}>
                 <View style={styles.brandHeader}>
-                    <PaperPlaneIcon size={44} color={Colors.primaryGreen} />
-                    <Text style={styles.brandName}>WhatsAppNext</Text>
+                    <BrandLogo width={140} height={36} resizeMode="contain" />
                     <Text style={styles.brandSub}>Automate. Engage. Grow.</Text>
                 </View>
 
@@ -388,15 +389,15 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onNavigateLogin })
                     style={styles.primaryBtn}
                     activeOpacity={0.85}
                     onPress={onNavigateLogin}>
-                    <Text style={styles.primaryBtnText}>Get Started</Text>
+                    <Text style={styles.primaryBtnText}>Sign In to Account</Text>
                     <ArrowRightIcon size={18} />
                 </TouchableOpacity>
 
                 <TouchableOpacity
                     style={styles.secondaryBtn}
                     activeOpacity={0.85}
-                    onPress={onNavigateLogin}>
-                    <Text style={styles.secondaryBtnText}>Login to Your Account</Text>
+                    onPress={onNavigateSignUp || onNavigateLogin}>
+                    <Text style={styles.secondaryBtnText}>Create New Workspace</Text>
                 </TouchableOpacity>
             </View>
         </SafeAreaView>

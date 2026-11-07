@@ -4,7 +4,7 @@ import { authService } from './supabase';
 export interface SendMessagePayload {
   conversation_id?: string;
   contact_id?: string;
-  message_type: 'text' | 'image' | 'video' | 'audio' | 'document' | 'template';
+  message_type: 'text' | 'image' | 'video' | 'audio' | 'document' | 'template' | 'interactive' | 'order' | 'location';
   content_text?: string;
   media_url?: string;
   filename?: string;

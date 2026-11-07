@@ -16,4 +16,30 @@ export const Colors = {
     chatBubbleGreen: '#DCF8C6',
     buttonLightBg: '#F3FBF7',
     badgeShadow: 'rgba(0, 0, 0, 0.06)',
+
+    // Official WhatsApp Brand & Theme Palette
+    whatsappGreen: '#25D366',
+    whatsappTeal: '#075E54',
+    whatsappTealDark: '#054C44',
+    whatsappLightTeal: '#128C7E',
+    whatsappChatBg: '#EFEAE2',
+    whatsappOutgoingBubble: '#DCF8C6',
+    whatsappIncomingBubble: '#FFFFFF',
+    whatsappBlueTick: '#34B7F1',
+    whatsappGrayTick: '#8696A0',
+    whatsappClockTick: '#94A3B8',
+    whatsappInputBg: '#F0F2F5',
+    whatsappDarkBg: '#0B141A',
+    whatsappHeaderGreen: '#008069',
+
+    // Status & Accent Colors
+    amberWarning: '#F59E0B',
+    amberBg: '#FEF3C7',
+    amberText: '#92400E',
+    redDanger: '#EF4444',
+    redBg: '#FEE2E2',
+    purpleAccent: '#7C3AED',
+    purpleBg: '#EDE9FE',
+    blueAccent: '#3B82F6',
+    blueBg: '#DBEAFE',
 };

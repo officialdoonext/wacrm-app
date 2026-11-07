@@ -1,5 +1,5 @@
 import React from 'react';
-import Svg, { Path, Circle, Rect, Line } from 'react-native-svg';
+import Svg, { Path, Line } from 'react-native-svg';
 
 // Megaphone icon for Bottom Bar & Cards
 export const MegaphoneIcon = ({ size = 22, color = '#10B981' }: { size?: number; color?: string }) => (

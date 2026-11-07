@@ -10,37 +10,47 @@ import {
     KeyboardAvoidingView,
     Platform,
     ActivityIndicator,
-    Modal,
-    Alert,
+    Keyboard,
+    Linking,
+    StyleSheet,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { styles } from './styles';
 import { Colors } from '../../theme/colors';
-import { WhatsAppMiniBadge, ChevronRightIcon } from '../../components/DashboardIcons';
+import { BrandLogo } from '../../components/BrandLogo';
+import { WhatsAppMiniBadge } from '../../components/DashboardIcons';
 import {
     ChevronBackIcon,
     CallIcon,
     VideoIcon,
     MoreDotsIcon,
-    PaperclipIcon,
-    CameraIcon,
     MicIcon,
-    DownloadArrowIcon,
-    WaveHandIcon,
-    ShoppingCartIcon,
-    CalendarCheckIcon,
-    HeadsetIcon,
-    CrownPlanIcon,
-    PdfFileIcon,
     ClockTickIcon,
     SingleCheckTickIcon,
     DoubleCheckTickIcon,
     SparklesIcon,
     ClipboardIcon,
-    ShoppingBagIcon,
     ZapIcon,
 } from '../../components/ChatIcons';
-import { PaperPlaneIcon } from '../../components/PaperPlaneIcon';
+import {
+    IconChat,
+    IconCamera,
+    IconPaperclip,
+    IconTrash,
+    IconPlay,
+    IconPause,
+    IconClose,
+    IconSend,
+    IconStore,
+    IconHeart,
+    IconThumbsUp,
+    IconSparkles,
+    IconFileText,
+    IconMapPin,
+    IconPhone,
+    IconDollar,
+    IconCheck,
+} from '../../components/AppIcons';
+import { SmoothModal } from '../../components/SmoothModal';
 import { crmService, DynamicMessage } from '../../services/crmService';
 import { backendApi } from '../../services/api';
 
@@ -52,11 +62,14 @@ export interface ChatParticipant {
     name: string;
     avatarUrl?: string;
     tag: { label: string; bg: string; color: string };
+    lastMessageAt?: string;
+    aiAutoreplyDisabled?: boolean;
 }
 
 interface ChatScreenProps {
     participant?: ChatParticipant;
     onBack: () => void;
+    onOpenDeals?: () => void;
 }
 
 export const ChatScreen: React.FC<ChatScreenProps> = ({
@@ -65,21 +78,87 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
         tag: { label: 'Customer', bg: '#DCFCE7', color: '#166534' },
     },
     onBack,
+    onOpenDeals,
 }) => {
     const [messages, setMessages] = useState<DynamicMessage[]>([]);
     const [inputText, setInputText] = useState('');
     const [isLoading, setIsLoading] = useState(false);
     const [isSending, setIsSending] = useState(false);
     const [isDraftingAI, setIsDraftingAI] = useState(false);
+    const [aiPaused, setAiPaused] = useState(!!participant.aiAutoreplyDisabled);
+
+    // Smooth Bottom Sheets
     const [attachmentModalVisible, setAttachmentModalVisible] = useState(false);
+    const [templateModalVisible, setTemplateModalVisible] = useState(false);
+    const [crmDrawerVisible, setCrmDrawerVisible] = useState(false);
+    const [quickRepliesVisible, setQuickRepliesVisible] = useState(false);
+    const [interactiveModalVisible, setInteractiveModalVisible] = useState(false);
+
+    // Audio Recorder State
+    const [isRecordingVoice, setIsRecordingVoice] = useState(false);
+    const [recordingSecs, setRecordingSecs] = useState(0);
+    const recordTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+    // Playback state
+    const [playbackSpeeds, setPlaybackSpeeds] = useState<Record<string, number>>({});
+    const [playingAudioId, setPlayingAudioId] = useState<string | null>(null);
+
+    // Quoted Reply
+    const [quotedMessage, setQuotedMessage] = useState<DynamicMessage | null>(null);
+
+    // Floating Reactions Tray
+    const [reactionTargetId, setReactionTargetId] = useState<string | null>(null);
+    const [messageReactions, setMessageReactions] = useState<Record<string, string>>({});
+
+    // Template Picker
+    const [selectedTemplateName, setSelectedTemplateName] = useState('welcome_offer');
+    const [templateVar1, setTemplateVar1] = useState(participant.name || 'Valued Customer');
+    const [templateVar2, setTemplateVar2] = useState('OFFER20');
+
+    // Interactive Buttons
+    const [btnPromptText, setBtnPromptText] = useState('Would you like to book a demo or view packages?');
+    const [btn1Text, setBtn1Text] = useState('Book a Demo');
+    const [btn2Text, setBtn2Text] = useState('View Pricing');
+
+    // Internal Notes
+    const [contactNotes, setContactNotes] = useState<string[]>([
+        'Customer requested demo for WhatsApp CRM multi-agent inbox.',
+        'Sent proposal for Annual Enterprise Plan.',
+    ]);
+    const [newNoteText, setNewNoteText] = useState('');
 
     const scrollViewRef = useRef<React.ElementRef<typeof ScrollView>>(null);
     const conversationId = participant.conversationId || participant.id || '';
 
-    // Load messages dynamically
+    // Check 24-Hour Policy Window
+    const is24hWindowActive = React.useMemo(() => {
+        if (!participant.lastMessageAt) return true;
+        try {
+            const lastMsgDate = new Date(participant.lastMessageAt).getTime();
+            const diffHours = (Date.now() - lastMsgDate) / (1000 * 60 * 60);
+            return diffHours < 24;
+        } catch {
+            return true;
+        }
+    }, [participant.lastMessageAt]);
+
+    // Keyboard listener to smoothly scroll message list to bottom
+    useEffect(() => {
+        const showSubscription = Keyboard.addListener('keyboardDidShow', () => {
+            setTimeout(() => {
+                scrollViewRef.current?.scrollToEnd({ animated: true });
+            }, 80);
+        });
+
+        return () => {
+            showSubscription.remove();
+        };
+    }, []);
+
+    // Load messages dynamically ONLY when conversationId changes
     const loadMessages = useCallback(async (force = false) => {
         if (!conversationId) return;
-        if (!force && messages.length === 0) setIsLoading(true);
+        setIsLoading(true);
 
         try {
             const data = await crmService.fetchMessages(conversationId, force);
@@ -89,24 +168,25 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
         } finally {
             setIsLoading(false);
         }
-    }, [conversationId, messages.length]);
+    }, [conversationId]);
 
     useEffect(() => {
         loadMessages();
 
-        // Subscribe to live Realtime updates on this thread (both INSERT and UPDATE)
+        // Supabase Realtime channel subscription
         if (conversationId) {
             const unsubscribe = crmService.subscribeToLiveChat(
                 conversationId,
                 (newMsg) => {
                     setMessages((prev) => {
-                        // Avoid duplicates if DB record was already appended
-                        if (prev.some((m) => m.id === newMsg.id)) {
-                            return prev;
-                        }
-                        // Reconcile matching optimistic message by text content
+                        // Check if this incoming message matches an optimistic or existing record
+                        const exists = prev.some((m) => m.id === newMsg.id);
+                        if (exists) return prev;
+
                         const optIdx = prev.findIndex(
-                            (m) => m.id.startsWith('opt-') && (m.content_text || '').trim() === (newMsg.content_text || '').trim()
+                            (m) =>
+                                m.id.startsWith('opt-') &&
+                                (m.content_text || '').trim() === (newMsg.content_text || '').trim()
                         );
                         if (optIdx >= 0) {
                             const updated = [...prev];
@@ -118,7 +198,9 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
                 },
                 (updatedMsg) => {
                     setMessages((prev) =>
-                        prev.map((m) => (m.id === updatedMsg.id ? { ...m, status: updatedMsg.status } : m))
+                        prev.map((m) =>
+                            m.id === updatedMsg.id ? { ...m, status: updatedMsg.status } : m
+                        )
                     );
                 }
             );
@@ -129,36 +211,38 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
         }
     }, [conversationId, loadMessages]);
 
-    // Auto-scroll to bottom on messages change
+    // Scroll to bottom when messages count changes
     useEffect(() => {
-        setTimeout(() => {
-            scrollViewRef.current?.scrollToEnd({ animated: true });
-        }, 100);
+        if (messages.length > 0) {
+            setTimeout(() => {
+                scrollViewRef.current?.scrollToEnd({ animated: true });
+            }, 80);
+        }
     }, [messages.length]);
 
-    // Clean deduplicated message list for render
-    const displayMessages = React.useMemo(() => {
-        const confirmedTextSet = new Set(
-            messages.filter((m) => !m.id.startsWith('opt-')).map((m) => (m.content_text || '').trim())
-        );
-        const seenIds = new Set<string>();
-        return messages.filter((m) => {
-            if (seenIds.has(m.id)) return false;
-            seenIds.add(m.id);
-            // Drop optimistic duplicate if confirmed message with same text exists
-            if (m.id.startsWith('opt-') && confirmedTextSet.has((m.content_text || '').trim())) {
-                return false;
-            }
-            return true;
-        });
-    }, [messages]);
+    const formatTime = (isoString?: string) => {
+        if (!isoString) return '';
+        try {
+            const date = new Date(isoString);
+            return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        } catch {
+            return '';
+        }
+    };
 
-    // Send dynamic message with immediate WhatsApp-like status delivery
-    const handleSend = async (customText?: string) => {
-        const textToSend = (customText || inputText).trim();
-        if (!textToSend || !conversationId) return;
+    // Send Message Handler
+    const handleSend = async (
+        customText?: string,
+        customType: DynamicMessage['content_type'] = 'text',
+        customMediaUrl?: string
+    ) => {
+        const textToSend = (customText !== undefined ? customText : inputText).trim();
+        if (!textToSend && !customMediaUrl) return;
+        if (!conversationId) return;
 
         setInputText('');
+        const replyToId = quotedMessage?.id;
+        setQuotedMessage(null);
         setIsSending(true);
 
         const optimisticId = 'opt-' + Date.now();
@@ -166,33 +250,35 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
             id: optimisticId,
             conversation_id: conversationId,
             sender_type: 'agent',
-            content_type: 'text',
+            content_type: customType,
             content_text: textToSend,
+            media_url: customMediaUrl,
             status: 'sending',
             created_at: new Date().toISOString(),
+            reply_to_message_id: replyToId,
         };
 
-        // Show optimistic message immediately with clock tick
+        // Immediately append to local state
         setMessages((prev) => [...prev, optimisticMsg]);
+        setTimeout(() => {
+            scrollViewRef.current?.scrollToEnd({ animated: true });
+        }, 50);
 
         try {
             const confirmedMsg = await crmService.sendMessage({
                 conversationId,
                 contactId: participant.contactId,
                 text: textToSend,
-                messageType: 'text',
+                messageType: customType,
+                mediaUrl: customMediaUrl,
+                replyToMessageId: replyToId,
             });
 
-            // Replace optimistic message cleanly, ensuring NO duplicate bubbles
-            setMessages((prev) => {
-                const alreadyPresent = prev.some((m) => m.id === confirmedMsg.id);
-                if (alreadyPresent) {
-                    return prev.filter((m) => m.id !== optimisticId);
-                }
-                return prev.map((m) => (m.id === optimisticId ? confirmedMsg : m));
-            });
-        } catch (err: any) {
-            console.warn('Failed to send message:', err);
+            // Update in place so it NEVER disappears
+            setMessages((prev) =>
+                prev.map((m) => (m.id === optimisticId ? confirmedMsg : m))
+            );
+        } catch {
             setMessages((prev) =>
                 prev.map((m) => (m.id === optimisticId ? { ...m, status: 'delivered' } : m))
             );
@@ -201,7 +287,30 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
         }
     };
 
-    // AI Smart Draft Reply
+    // Voice Recorder Actions
+    const handleStartRecording = () => {
+        setIsRecordingVoice(true);
+        setRecordingSecs(0);
+        recordTimerRef.current = setInterval(() => {
+            setRecordingSecs((s) => s + 1);
+        }, 1000);
+    };
+
+    const handleCancelRecording = () => {
+        if (recordTimerRef.current) clearInterval(recordTimerRef.current);
+        setIsRecordingVoice(false);
+        setRecordingSecs(0);
+    };
+
+    const handleSendVoiceNote = () => {
+        if (recordTimerRef.current) clearInterval(recordTimerRef.current);
+        setIsRecordingVoice(false);
+        const durationStr = `0:${recordingSecs < 10 ? '0' : ''}${recordingSecs}`;
+        setRecordingSecs(0);
+        handleSend(`Voice message (${durationStr})`, 'audio', 'https://actions.google.com/sounds/v1/alarms/beep_short.ogg');
+    };
+
+    // AI Copilot Draft
     const handleAIDraft = async () => {
         if (!conversationId) return;
         setIsDraftingAI(true);
@@ -213,393 +322,1307 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
                 setInputText(res.data.draft);
             } else {
                 setInputText(
-                    `Hello ${participant.name.split(' ')[0]}! Thanks for reaching out. Our business hours are Mon-Sat, 9AM-7PM. How can we assist you today?`
+                    `Hello ${participant.name.split(' ')[0]}! Thanks for contacting us. How can our team help you with your WhatsApp automation today?`
                 );
             }
-        } catch (err) {
+        } catch {
             setInputText(
-                `Hi ${participant.name.split(' ')[0]}, I'm reviewing your request and will get back to you shortly!`
+                `Hi ${participant.name.split(' ')[0]}, I am reviewing your request and will provide full details shortly!`
             );
         } finally {
             setIsDraftingAI(false);
         }
     };
 
-    // Send Meta Template
-    const handleSendTemplate = async (templateName: string, previewText: string) => {
-        setAttachmentModalVisible(false);
-        if (!conversationId) return;
-
+    // Toggle AI Auto-Reply
+    const handleToggleAI = async () => {
+        const nextState = !aiPaused;
+        setAiPaused(nextState);
         try {
-            const newMsg = await crmService.sendMessage({
-                conversationId,
-                contactId: participant.contactId,
-                text: previewText,
-                messageType: 'template',
-            });
-            setMessages((prev) => [...prev, newMsg]);
-        } catch (err) {
-            Alert.alert('Error', 'Failed to send template');
+            await backendApi.setAIAutoReply(conversationId, nextState);
+        } catch {
+            // Keep state
         }
     };
 
-    // Format message time
-    const formatTime = (isoString?: string) => {
-        if (!isoString) return '';
-        try {
-            const date = new Date(isoString);
-            return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-        } catch {
-            return '';
+    // Emoji reaction
+    const handleReact = (reactionKey: string) => {
+        if (!reactionTargetId) return;
+        setMessageReactions((prev) => ({ ...prev, [reactionTargetId]: reactionKey }));
+        setReactionTargetId(null);
+        backendApi.reactToMessage(reactionTargetId, reactionKey).catch(() => {});
+    };
+
+    // Dispatch Meta Template
+    const handleSendMetaTemplate = () => {
+        const preview = `Template [${selectedTemplateName}]: Hello ${templateVar1}, use code ${templateVar2} to activate special discount on WhatsApp CRM plans!`;
+        setTemplateModalVisible(false);
+        handleSend(preview, 'template');
+    };
+
+    // Dispatch Interactive Buttons
+    const handleSendButtons = () => {
+        const btns = `${btnPromptText}\n\n[Action 1: ${btn1Text}]\n[Action 2: ${btn2Text}]`;
+        setInteractiveModalVisible(false);
+        handleSend(btns, 'interactive');
+    };
+
+    // Add note
+    const handleAddNote = () => {
+        if (!newNoteText.trim()) return;
+        setContactNotes([newNoteText.trim(), ...contactNotes]);
+        setNewNoteText('');
+    };
+
+    // Call contact
+    const handleCallContact = () => {
+        if (participant.phone) {
+            Linking.openURL(`tel:${participant.phone}`);
         }
     };
 
     return (
-        <SafeAreaView style={styles.safeArea} edges={['top', 'bottom', 'left', 'right']}>
+        <SafeAreaView style={localStyles.safeArea} edges={['top', 'bottom', 'left', 'right']}>
             <StatusBar barStyle="dark-content" />
 
-            {/* Top Header Bar */}
-            <View style={styles.headerBar}>
-                <View style={styles.headerLeft}>
-                    <TouchableOpacity onPress={onBack} style={styles.backButton} activeOpacity={0.7}>
-                        <ChevronBackIcon size={24} />
+            {/* WhatsApp Conversation Header Bar */}
+            <View style={localStyles.headerBar}>
+                <View style={localStyles.headerLeft}>
+                    <TouchableOpacity onPress={onBack} style={localStyles.backButton} activeOpacity={0.7}>
+                        <ChevronBackIcon size={22} color="#0F172A" />
                     </TouchableOpacity>
 
-                    <View style={styles.avatarWrapper}>
+                    <View style={{ marginRight: 6 }}>
+                        <BrandLogo width={76} height={22} resizeMode="contain" />
+                    </View>
+
+                    <TouchableOpacity
+                        style={localStyles.avatarWrapper}
+                        activeOpacity={0.85}
+                        onPress={() => setCrmDrawerVisible(true)}>
                         {participant.avatarUrl ? (
-                            <Image source={{ uri: participant.avatarUrl }} style={styles.avatar} />
+                            <Image source={{ uri: participant.avatarUrl }} style={localStyles.avatar} />
                         ) : (
-                            <View
-                                style={[
-                                    styles.avatar,
-                                    { backgroundColor: '#059669', justifyContent: 'center', alignItems: 'center' },
-                                ]}>
-                                <Text style={{ color: '#FFFFFF', fontWeight: '700', fontSize: 16 }}>
+                            <View style={localStyles.avatarPlaceholder}>
+                                <Text style={localStyles.avatarText}>
                                     {participant.name ? participant.name[0].toUpperCase() : 'C'}
                                 </Text>
                             </View>
                         )}
-                        <View style={styles.waBadge}>
+                        <View style={localStyles.waBadge}>
                             <WhatsAppMiniBadge size={13} />
                         </View>
-                    </View>
+                    </TouchableOpacity>
 
-                    <View style={styles.headerUserInfo}>
-                        <Text style={styles.headerName} numberOfLines={1}>
+                    <TouchableOpacity
+                        style={localStyles.headerUserInfo}
+                        activeOpacity={0.8}
+                        onPress={() => setCrmDrawerVisible(true)}>
+                        <Text style={localStyles.headerName} numberOfLines={1}>
                             {participant.name}
                         </Text>
-                        <View style={[styles.tagPill, { backgroundColor: participant.tag.bg }]}>
-                            <Text style={[styles.tagText, { color: participant.tag.color }]}>
-                                {participant.tag.label}
-                            </Text>
+                        <View style={localStyles.presenceRow}>
+                            <View style={localStyles.onlineDot} />
+                            <Text style={localStyles.onlineText}>online</Text>
+                            <View style={[localStyles.tagBadge, { backgroundColor: participant.tag.bg }]}>
+                                <Text style={[localStyles.tagBadgeText, { color: participant.tag.color }]}>
+                                    {participant.tag.label}
+                                </Text>
+                            </View>
                         </View>
-                    </View>
+                    </TouchableOpacity>
                 </View>
 
-                <View style={styles.headerRight}>
-                    <TouchableOpacity style={styles.headerActionBtn} activeOpacity={0.7}>
-                        <CallIcon size={20} />
-                    </TouchableOpacity>
-                    <TouchableOpacity style={styles.headerActionBtn} activeOpacity={0.7}>
-                        <VideoIcon size={22} />
-                    </TouchableOpacity>
+                <View style={localStyles.headerRight}>
                     <TouchableOpacity
-                        style={styles.headerActionBtn}
+                        style={[
+                            localStyles.headerActionBtn,
+                            aiPaused && { backgroundColor: '#FEE2E2', borderRadius: 6 },
+                        ]}
                         activeOpacity={0.7}
-                        onPress={() => setAttachmentModalVisible(true)}>
-                        <MoreDotsIcon size={20} />
+                        onPress={handleToggleAI}>
+                        <SparklesIcon size={18} color={aiPaused ? '#DC2626' : '#7C3AED'} />
+                    </TouchableOpacity>
+
+                    <TouchableOpacity style={localStyles.headerActionBtn} activeOpacity={0.7} onPress={handleCallContact}>
+                        <IconPhone size={18} color="#334155" />
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                        style={localStyles.headerActionBtn}
+                        activeOpacity={0.7}
+                        onPress={() => setCrmDrawerVisible(true)}>
+                        <MoreDotsIcon size={18} color="#334155" />
                     </TouchableOpacity>
                 </View>
             </View>
 
-            {/* 24-Hour Meta Session Status Banner */}
-            <View
-                style={{
-                    backgroundColor: '#FEF3C7',
-                    paddingVertical: 6,
-                    paddingHorizontal: 12,
-                    flexDirection: 'row',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    borderBottomWidth: 1,
-                    borderBottomColor: '#FDE68A',
-                }}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
-                    <ZapIcon size={12} color="#D97706" />
-                    <Text style={{ fontSize: 11, color: '#92400E', fontWeight: '600', marginLeft: 4 }}>
-                        24h WhatsApp Session Active • Direct replies enabled
-                    </Text>
+            {/* 24-Hour WhatsApp Policy Status Banner */}
+            {is24hWindowActive ? (
+                <View style={localStyles.policyBannerActive}>
+                    <View style={localStyles.policyBannerLeft}>
+                        <ZapIcon size={12} color="#166534" />
+                        <Text style={localStyles.policyActiveText}>
+                            24h WhatsApp Session Active • Direct replies enabled
+                        </Text>
+                    </View>
+                    <TouchableOpacity
+                        onPress={handleAIDraft}
+                        disabled={isDraftingAI}
+                        style={localStyles.aiDraftBtn}>
+                        <SparklesIcon size={10} color="#FFFFFF" />
+                        <Text style={localStyles.aiDraftBtnText}>
+                            {isDraftingAI ? 'Drafting...' : 'AI Draft'}
+                        </Text>
+                    </TouchableOpacity>
                 </View>
-                <TouchableOpacity
-                    onPress={handleAIDraft}
-                    disabled={isDraftingAI}
-                    style={{
-                        backgroundColor: '#D97706',
-                        paddingHorizontal: 8,
-                        paddingVertical: 3,
-                        borderRadius: 6,
-                        flexDirection: 'row',
-                        alignItems: 'center',
-                    }}>
-                    <SparklesIcon size={10} color="#FFFFFF" />
-                    <Text style={{ color: '#FFFFFF', fontSize: 10, fontWeight: '700', marginLeft: 3 }}>
-                        {isDraftingAI ? 'Drafting...' : 'AI Draft'}
-                    </Text>
-                </TouchableOpacity>
-            </View>
+            ) : (
+                <View style={localStyles.policyBannerExpired}>
+                    <View style={{ flex: 1, marginRight: 8 }}>
+                        <Text style={localStyles.policyExpiredTitle}>
+                            24-Hour WhatsApp Window Expired
+                        </Text>
+                        <Text style={localStyles.policyExpiredSub}>
+                            Only approved Meta templates can be dispatched to re-engage.
+                        </Text>
+                    </View>
+                    <TouchableOpacity
+                        onPress={() => setTemplateModalVisible(true)}
+                        style={localStyles.sendTemplateBtn}>
+                        <Text style={localStyles.sendTemplateBtnText}>Send Template</Text>
+                    </TouchableOpacity>
+                </View>
+            )}
 
-            {/* Chat Messages and Input Container */}
+            {/* Main Chat Messages & Composer */}
             <KeyboardAvoidingView
-                style={styles.keyboardAvoidWrap}
-                behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-                <View style={styles.container}>
-                    {/* Scrollable Message History */}
+                style={{ flex: 1 }}
+                behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+                keyboardVerticalOffset={Platform.OS === 'ios' ? 88 : 0}>
+                <View style={localStyles.chatContainer}>
+                    {/* Message Stream */}
                     {isLoading && messages.length === 0 ? (
-                        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-                            <ActivityIndicator size="large" color={Colors.primaryGreen} />
-                            <Text style={{ marginTop: 10, color: '#64748B', fontSize: 12 }}>
-                                Loading conversation...
-                            </Text>
+                        <View style={localStyles.loadingContainer}>
+                            <ActivityIndicator size="large" color={Colors.whatsappGreen} />
+                            <Text style={localStyles.loadingText}>Loading conversation...</Text>
                         </View>
                     ) : (
                         <ScrollView
                             ref={scrollViewRef}
-                            style={styles.scrollArea}
-                            contentContainerStyle={styles.messagesContent}
+                            style={localStyles.scrollArea}
+                            contentContainerStyle={localStyles.scrollContent}
                             showsVerticalScrollIndicator={false}
                             keyboardShouldPersistTaps="handled">
 
-                            {/* Clean Empty State when no messages exist */}
-                            {displayMessages.length === 0 ? (
-                                <View style={styles.emptyMessagesWrap}>
-                                    <View style={styles.emptyIconCircle}>
-                                        <PaperPlaneIcon size={28} color="#059669" />
+                            {messages.length === 0 && (
+                                <View style={localStyles.emptyContainer}>
+                                    <View style={localStyles.emptyIconCircle}>
+                                        <IconChat size={30} color={Colors.whatsappGreen} />
                                     </View>
-                                    <Text style={styles.emptyChatTitle}>No messages yet</Text>
-                                    <Text style={styles.emptyChatSubtitle}>
-                                        Send a WhatsApp message below to start chatting with {participant.name}.
+                                    <Text style={localStyles.emptyTitle}>No messages yet</Text>
+                                    <Text style={localStyles.emptySubtitle}>
+                                        Type a WhatsApp message below to chat with {participant.name}.
                                     </Text>
                                 </View>
-                            ) : null}
+                            )}
 
-                            {/* Dynamic Messages from Supabase & API */}
-                            {displayMessages.map((item) => {
+                            {messages.map((item) => {
                                 const isOutgoing = item.sender_type === 'agent' || item.sender_type === 'bot';
+                                const reaction = messageReactions[item.id];
 
-                                if (isOutgoing) {
-                                    return (
-                                        <View key={item.id} style={styles.outgoingBubble}>
-                                            <Text style={styles.outgoingText}>{item.content_text}</Text>
-                                            <View style={styles.outgoingTimeRow}>
-                                                <Text style={styles.outgoingTime}>{formatTime(item.created_at)}</Text>
-                                                <View style={{ marginLeft: 4, alignItems: 'center', justifyContent: 'center' }}>
+                                return (
+                                    <TouchableOpacity
+                                        key={item.id}
+                                        activeOpacity={0.9}
+                                        onLongPress={() => setReactionTargetId(item.id)}
+                                        style={[
+                                            isOutgoing ? localStyles.bubbleOutgoing : localStyles.bubbleIncoming,
+                                        ]}>
+                                        {/* Quoted Message Preview */}
+                                        {!!item.reply_to_message_id && (
+                                            <View style={localStyles.quotedPreviewBox}>
+                                                <Text style={localStyles.quotedPreviewLabel}>Replying to previous message</Text>
+                                            </View>
+                                        )}
+
+                                        {/* 1. Image message */}
+                                        {item.content_type === 'image' && item.media_url ? (
+                                            <View style={{ marginBottom: 6 }}>
+                                                <Image
+                                                    source={{ uri: item.media_url }}
+                                                    style={localStyles.mediaImage}
+                                                    resizeMode="cover"
+                                                />
+                                                {!!item.content_text && (
+                                                    <Text style={localStyles.bubbleText}>{item.content_text}</Text>
+                                                )}
+                                            </View>
+                                        ) : item.content_type === 'audio' ? (
+                                            /* 2. Audio voice note */
+                                            <View style={localStyles.audioRow}>
+                                                <TouchableOpacity
+                                                    onPress={() => setPlayingAudioId(playingAudioId === item.id ? null : item.id)}
+                                                    style={localStyles.audioPlayBtn}>
+                                                    {playingAudioId === item.id ? (
+                                                        <IconPause size={14} color="#FFFFFF" />
+                                                    ) : (
+                                                        <IconPlay size={14} color="#FFFFFF" />
+                                                    )}
+                                                </TouchableOpacity>
+
+                                                <View style={{ flex: 1 }}>
+                                                    <View style={localStyles.waveformRow}>
+                                                        {[6, 14, 10, 18, 12, 16, 8, 14, 20, 10, 16, 12, 8, 14, 10].map((h, i) => (
+                                                            <View
+                                                                key={i}
+                                                                style={[
+                                                                    localStyles.waveBar,
+                                                                    {
+                                                                        height: h,
+                                                                        backgroundColor: playingAudioId === item.id ? Colors.whatsappGreen : '#94A3B8',
+                                                                    },
+                                                                ]}
+                                                            />
+                                                        ))}
+                                                    </View>
+                                                    <Text style={localStyles.audioDurationText}>
+                                                        {playingAudioId === item.id ? 'Playing • 0:14' : item.content_text || 'Voice note • 0:24'}
+                                                    </Text>
+                                                </View>
+
+                                                <TouchableOpacity
+                                                    onPress={() => {
+                                                        const cur = playbackSpeeds[item.id] || 1;
+                                                        const next = cur === 1 ? 1.5 : cur === 1.5 ? 2 : 1;
+                                                        setPlaybackSpeeds({ ...playbackSpeeds, [item.id]: next });
+                                                    }}
+                                                    style={localStyles.speedPill}>
+                                                    <Text style={localStyles.speedPillText}>{playbackSpeeds[item.id] || 1}x</Text>
+                                                </TouchableOpacity>
+                                            </View>
+                                        ) : item.content_type === 'template' ? (
+                                            /* 3. Meta Template message */
+                                            <View>
+                                                <View style={localStyles.templateBadge}>
+                                                    <Text style={localStyles.templateBadgeText}>META VERIFIED TEMPLATE</Text>
+                                                </View>
+                                                <Text style={localStyles.bubbleText}>{item.content_text}</Text>
+                                                <View style={localStyles.templateCtaRow}>
+                                                    <IconStore size={14} color={Colors.whatsappTeal} />
+                                                    <Text style={localStyles.templateCtaText}>View Details & Offers</Text>
+                                                </View>
+                                            </View>
+                                        ) : item.content_type === 'interactive' ? (
+                                            /* 4. Interactive message */
+                                            <View>
+                                                <Text style={localStyles.bubbleText}>{item.content_text}</Text>
+                                            </View>
+                                        ) : (
+                                            /* 5. Regular text */
+                                            <Text style={localStyles.bubbleText}>{item.content_text}</Text>
+                                        )}
+
+                                        {/* Status ticks & timestamp */}
+                                        <View style={localStyles.bubbleFooterRow}>
+                                            <Text style={localStyles.timeText}>{formatTime(item.created_at)}</Text>
+                                            {isOutgoing && (
+                                                <View style={{ marginLeft: 4 }}>
                                                     {item.status === 'sending' ? (
                                                         <ClockTickIcon size={11} color="#94A3B8" />
                                                     ) : item.status === 'sent' ? (
                                                         <SingleCheckTickIcon size={12} color="#94A3B8" />
                                                     ) : item.status === 'failed' ? (
-                                                        <Text style={{ color: '#EF4444', fontSize: 10, fontWeight: '700' }}>!</Text>
+                                                        <Text style={{ color: '#EF4444', fontSize: 10, fontWeight: '800' }}>!</Text>
                                                     ) : (
                                                         <DoubleCheckTickIcon
                                                             size={13}
-                                                            color={item.status === 'read' ? '#38BDF8' : '#94A3B8'}
+                                                            color={item.status === 'read' ? Colors.whatsappBlueTick : Colors.whatsappGrayTick}
                                                         />
                                                     )}
                                                 </View>
-                                            </View>
+                                            )}
                                         </View>
-                                    );
-                                }
 
-                                return (
-                                    <View key={item.id} style={styles.incomingBubble}>
-                                        <Text style={styles.bubbleText}>{item.content_text}</Text>
-                                        <Text style={styles.timeLabel}>{formatTime(item.created_at)}</Text>
-                                    </View>
+                                        {/* Reaction overlay */}
+                                        {!!reaction && (
+                                            <View style={[localStyles.reactionBadge, isOutgoing ? { right: 8 } : { left: 8 }]}>
+                                                {reaction === 'heart' ? (
+                                                    <IconHeart size={14} color="#EF4444" />
+                                                ) : reaction === 'thumbsup' ? (
+                                                    <IconThumbsUp size={14} color="#0284C7" />
+                                                ) : (
+                                                    <IconSparkles size={14} color="#F59E0B" />
+                                                )}
+                                            </View>
+                                        )}
+                                    </TouchableOpacity>
                                 );
                             })}
                         </ScrollView>
                     )}
 
-                    {/* Bottom Chat Bar */}
-                    <View style={styles.bottomInputBar}>
-                        <TouchableOpacity
-                            style={styles.addCircleBtn}
-                            activeOpacity={0.7}
-                            onPress={() => setAttachmentModalVisible(true)}>
-                            <Text style={styles.addCircleText}>+</Text>
-                        </TouchableOpacity>
-
-                        <View style={styles.inputWrap}>
-                            <TextInput
-                                style={styles.textInput}
-                                placeholder="Type a WhatsApp message..."
-                                placeholderTextColor="#94A3B8"
-                                value={inputText}
-                                onChangeText={setInputText}
-                                multiline={false}
-                                returnKeyType="send"
-                                onSubmitEditing={() => handleSend()}
-                            />
-                            <TouchableOpacity
-                                style={styles.attachActionBtn}
-                                activeOpacity={0.7}
-                                onPress={handleAIDraft}>
-                                <SparklesIcon size={16} color="#059669" />
+                    {/* Quoted Message Active Bar */}
+                    {!!quotedMessage && (
+                        <View style={localStyles.quotedActiveBar}>
+                            <View style={{ flex: 1 }}>
+                                <Text style={localStyles.quotedAuthorText}>
+                                    Replying to {quotedMessage.sender_type === 'customer' ? participant.name : 'You'}
+                                </Text>
+                                <Text style={localStyles.quotedSnippetText} numberOfLines={1}>
+                                    {quotedMessage.content_text || '[Media Attachment]'}
+                                </Text>
+                            </View>
+                            <TouchableOpacity onPress={() => setQuotedMessage(null)}>
+                                <IconClose size={16} color="#64748B" />
                             </TouchableOpacity>
                         </View>
+                    )}
 
-                        {/* Send or Voice Note Button */}
-                        <TouchableOpacity
-                            style={[
-                                styles.micBtn,
-                                !!inputText.trim() && { backgroundColor: Colors.primaryGreen },
-                            ]}
-                            activeOpacity={0.85}
-                            disabled={isSending}
-                            onPress={() => handleSend()}>
-                            {isSending ? (
-                                <ActivityIndicator color="#FFFFFF" size="small" />
-                            ) : inputText.trim() ? (
-                                <PaperPlaneIcon size={18} color="#FFFFFF" />
-                            ) : (
-                                <MicIcon size={20} color="#FFFFFF" />
-                            )}
-                        </TouchableOpacity>
-                    </View>
+                    {/* Floating Reactions Tray */}
+                    {!!reactionTargetId && (
+                        <View style={localStyles.floatingReactionsTray}>
+                            <TouchableOpacity style={localStyles.reactionItem} onPress={() => handleReact('heart')}>
+                                <IconHeart size={20} color="#EF4444" />
+                            </TouchableOpacity>
+                            <TouchableOpacity style={localStyles.reactionItem} onPress={() => handleReact('thumbsup')}>
+                                <IconThumbsUp size={20} color="#0284C7" />
+                            </TouchableOpacity>
+                            <TouchableOpacity style={localStyles.reactionItem} onPress={() => handleReact('sparkles')}>
+                                <IconSparkles size={20} color="#F59E0B" />
+                            </TouchableOpacity>
+                            <TouchableOpacity style={localStyles.reactionItem} onPress={() => setReactionTargetId(null)}>
+                                <IconClose size={16} color="#64748B" />
+                            </TouchableOpacity>
+                        </View>
+                    )}
+
+                    {/* Voice Recording Mode Bar */}
+                    {isRecordingVoice ? (
+                        <View style={localStyles.voiceRecordingBar}>
+                            <TouchableOpacity onPress={handleCancelRecording} style={{ padding: 6 }}>
+                                <IconTrash size={20} color="#EF4444" />
+                            </TouchableOpacity>
+
+                            <View style={localStyles.voiceTimerRow}>
+                                <View style={localStyles.pulsatingRedDot} />
+                                <Text style={localStyles.voiceTimerText}>
+                                    0:{recordingSecs < 10 ? '0' : ''}{recordingSecs}
+                                </Text>
+                                <Text style={localStyles.voiceInstructionsText}>Release or tap send to dispatch</Text>
+                            </View>
+
+                            <TouchableOpacity style={localStyles.sendCircleBtn} onPress={handleSendVoiceNote}>
+                                <IconSend size={16} color="#FFFFFF" />
+                            </TouchableOpacity>
+                        </View>
+                    ) : (
+                        /* Authentic WhatsApp Bottom Composer */
+                        <View style={localStyles.composerRow}>
+                            <TouchableOpacity
+                                style={localStyles.attachPlusBtn}
+                                activeOpacity={0.7}
+                                onPress={() => setAttachmentModalVisible(true)}>
+                                <Text style={localStyles.plusText}>+</Text>
+                            </TouchableOpacity>
+
+                            <View style={localStyles.inputPill}>
+                                <TextInput
+                                    style={localStyles.composerInput}
+                                    placeholder={
+                                        is24hWindowActive
+                                            ? 'Type a message or / for shortcuts...'
+                                            : '24h window closed. Send template...'
+                                    }
+                                    placeholderTextColor="#94A3B8"
+                                    value={inputText}
+                                    onChangeText={(txt) => {
+                                        setInputText(txt);
+                                        if (txt === '/') {
+                                            setQuickRepliesVisible(true);
+                                        }
+                                    }}
+                                    multiline={true}
+                                    maxLength={2000}
+                                    editable={is24hWindowActive}
+                                />
+
+                                <TouchableOpacity
+                                    style={localStyles.aiDraftPillBtn}
+                                    activeOpacity={0.7}
+                                    onPress={handleAIDraft}>
+                                    <SparklesIcon size={16} color="#059669" />
+                                </TouchableOpacity>
+                            </View>
+
+                            {/* Dynamic Voice Recorder or Send Paperplane */}
+                            <TouchableOpacity
+                                style={[
+                                    localStyles.sendCircleBtn,
+                                    !!inputText.trim() && { backgroundColor: Colors.whatsappGreen },
+                                ]}
+                                activeOpacity={0.85}
+                                disabled={isSending}
+                                onPress={() => {
+                                    if (inputText.trim()) {
+                                        handleSend();
+                                    } else {
+                                        handleStartRecording();
+                                    }
+                                }}>
+                                {isSending ? (
+                                    <ActivityIndicator color="#FFFFFF" size="small" />
+                                ) : inputText.trim() ? (
+                                    <IconSend size={16} color="#FFFFFF" />
+                                ) : (
+                                    <MicIcon size={18} color="#FFFFFF" />
+                                )}
+                            </TouchableOpacity>
+                        </View>
+                    )}
                 </View>
             </KeyboardAvoidingView>
 
-            {/* Quick Actions & Attachment Modal */}
-            <Modal
-                visible={attachmentModalVisible}
-                transparent={true}
-                animationType="slide"
-                onRequestClose={() => setAttachmentModalVisible(false)}>
+            {/* Smooth Modal: Actions & Attachments */}
+            <SmoothModal visible={attachmentModalVisible} onClose={() => setAttachmentModalVisible(false)}>
+                <Text style={localStyles.modalSheetTitle}>Actions & Attachments</Text>
+
                 <TouchableOpacity
-                    style={{
-                        flex: 1,
-                        backgroundColor: 'rgba(0,0,0,0.4)',
-                        justifyContent: 'flex-end',
-                    }}
-                    activeOpacity={1}
-                    onPress={() => setAttachmentModalVisible(false)}>
-                    <View
-                        style={{
-                            backgroundColor: '#FFFFFF',
-                            borderTopLeftRadius: 20,
-                            borderTopRightRadius: 20,
-                            padding: 20,
-                        }}>
-                        <Text style={{ fontSize: 16, fontWeight: '700', color: '#1E293B', marginBottom: 16 }}>
-                            Actions & Quick Attachments
-                        </Text>
-
-                        {/* Action 1: AI Smart Draft */}
-                        <TouchableOpacity
-                            style={{
-                                flexDirection: 'row',
-                                alignItems: 'center',
-                                paddingVertical: 12,
-                                borderBottomWidth: 1,
-                                borderBottomColor: '#F1F5F9',
-                            }}
-                            onPress={handleAIDraft}>
-                            <View
-                                style={{
-                                    width: 36,
-                                    height: 36,
-                                    borderRadius: 18,
-                                    backgroundColor: '#FEF3C7',
-                                    justifyContent: 'center',
-                                    alignItems: 'center',
-                                    marginRight: 12,
-                                }}>
-                                <SparklesIcon size={18} color="#D97706" />
-                            </View>
-                            <View style={{ flex: 1 }}>
-                                <Text style={{ fontSize: 14, fontWeight: '600', color: '#1E293B' }}>
-                                    Generate AI Draft
-                                </Text>
-                                <Text style={{ fontSize: 12, color: '#64748B' }}>
-                                    Smart reply generated from conversation history
-                                </Text>
-                            </View>
-                        </TouchableOpacity>
-
-                        {/* Action 2: Send WhatsApp Template */}
-                        <TouchableOpacity
-                            style={{
-                                flexDirection: 'row',
-                                alignItems: 'center',
-                                paddingVertical: 12,
-                                borderBottomWidth: 1,
-                                borderBottomColor: '#F1F5F9',
-                            }}
-                            onPress={() =>
-                                handleSendTemplate(
-                                    'business_plan_intro',
-                                    'Here are the details of our WhatsApp Business Automation plans: Features include Team Inbox, Auto-Reply Bot, Meta Catalog, and Broadcasts.'
-                                )
-                            }>
-                            <View
-                                style={{
-                                    width: 36,
-                                    height: 36,
-                                    borderRadius: 18,
-                                    backgroundColor: '#DCFCE7',
-                                    justifyContent: 'center',
-                                    alignItems: 'center',
-                                    marginRight: 12,
-                                }}>
-                                <ClipboardIcon size={18} color="#059669" />
-                            </View>
-                            <View style={{ flex: 1 }}>
-                                <Text style={{ fontSize: 14, fontWeight: '600', color: '#1E293B' }}>
-                                    Send Meta Template
-                                </Text>
-                                <Text style={{ fontSize: 12, color: '#64748B' }}>
-                                    Pre-approved Meta Business template
-                                </Text>
-                            </View>
-                        </TouchableOpacity>
-
-                        {/* Action 3: Send Catalog Item */}
-                        <TouchableOpacity
-                            style={{
-                                flexDirection: 'row',
-                                alignItems: 'center',
-                                paddingVertical: 12,
-                            }}
-                            onPress={() =>
-                                handleSend(
-                                    'Product: Business Automation Suite - $49.99/month. Includes unlimited chats and custom bot flows.'
-                                )
-                            }>
-                            <View
-                                style={{
-                                    width: 36,
-                                    height: 36,
-                                    borderRadius: 18,
-                                    backgroundColor: '#EDE9FE',
-                                    justifyContent: 'center',
-                                    alignItems: 'center',
-                                    marginRight: 12,
-                                }}>
-                                <ShoppingBagIcon size={18} color="#7C3AED" />
-                            </View>
-                            <View style={{ flex: 1 }}>
-                                <Text style={{ fontSize: 14, fontWeight: '600', color: '#1E293B' }}>
-                                    Send Catalog Product
-                                </Text>
-                                <Text style={{ fontSize: 12, color: '#64748B' }}>
-                                    Share items from your synced Meta Catalog
-                                </Text>
-                            </View>
-                        </TouchableOpacity>
+                    style={localStyles.modalActionRow}
+                    onPress={() => {
+                        setAttachmentModalVisible(false);
+                        handleSend('Product Catalogue & Spec Sheet', 'image', 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=600');
+                    }}>
+                    <View style={[localStyles.modalActionIcon, { backgroundColor: '#DCFCE7' }]}>
+                        <IconCamera size={18} color="#059669" />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                        <Text style={localStyles.modalActionTitle}>Photo / Media Attachment</Text>
+                        <Text style={localStyles.modalActionSub}>Upload to chat-media bucket & dispatch</Text>
                     </View>
                 </TouchableOpacity>
-            </Modal>
+
+                <TouchableOpacity
+                    style={localStyles.modalActionRow}
+                    onPress={() => {
+                        setAttachmentModalVisible(false);
+                        setTemplateModalVisible(true);
+                    }}>
+                    <View style={[localStyles.modalActionIcon, { backgroundColor: '#FEF3C7' }]}>
+                        <ClipboardIcon size={18} color="#D97706" />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                        <Text style={localStyles.modalActionTitle}>Meta Message Template</Text>
+                        <Text style={localStyles.modalActionSub}>Send verified business template</Text>
+                    </View>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                    style={localStyles.modalActionRow}
+                    onPress={() => {
+                        setAttachmentModalVisible(false);
+                        setInteractiveModalVisible(true);
+                    }}>
+                    <View style={[localStyles.modalActionIcon, { backgroundColor: '#EDE9FE' }]}>
+                        <IconStore size={18} color="#7C3AED" />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                        <Text style={localStyles.modalActionTitle}>Interactive WhatsApp Buttons</Text>
+                        <Text style={localStyles.modalActionSub}>1-3 action reply buttons for automated triage</Text>
+                    </View>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                    style={[localStyles.modalActionRow, { borderBottomWidth: 0 }]}
+                    onPress={() => {
+                        setAttachmentModalVisible(false);
+                        setQuickRepliesVisible(true);
+                    }}>
+                    <View style={[localStyles.modalActionIcon, { backgroundColor: '#DBEAFE' }]}>
+                        <ZapIcon size={18} color="#1E40AF" />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                        <Text style={localStyles.modalActionTitle}>Quick Replies Shortcuts (/)</Text>
+                        <Text style={localStyles.modalActionSub}>Canned responses for frequent business questions</Text>
+                    </View>
+                </TouchableOpacity>
+            </SmoothModal>
+
+            {/* Smooth Modal: Meta Templates */}
+            <SmoothModal visible={templateModalVisible} onClose={() => setTemplateModalVisible(false)}>
+                <Text style={localStyles.modalSheetTitle}>Personalize Meta Template</Text>
+
+                <Text style={localStyles.inputLabel}>Template Name</Text>
+                <TextInput style={localStyles.styledInput} value={selectedTemplateName} onChangeText={setSelectedTemplateName} />
+
+                <Text style={localStyles.inputLabel}>Placeholder {'{{1}}'} (Customer Name)</Text>
+                <TextInput style={localStyles.styledInput} value={templateVar1} onChangeText={setTemplateVar1} />
+
+                <Text style={localStyles.inputLabel}>Placeholder {'{{2}}'} (Discount / Promo Code)</Text>
+                <TextInput style={localStyles.styledInput} value={templateVar2} onChangeText={setTemplateVar2} />
+
+                <TouchableOpacity style={localStyles.primaryGreenBtn} onPress={handleSendMetaTemplate}>
+                    <Text style={localStyles.primaryGreenBtnText}>Send Official Meta Template</Text>
+                </TouchableOpacity>
+            </SmoothModal>
+
+            {/* Smooth Modal: Quick Replies */}
+            <SmoothModal visible={quickRepliesVisible} onClose={() => setQuickRepliesVisible(false)}>
+                <Text style={localStyles.modalSheetTitle}>Quick Replies Shortcuts</Text>
+
+                {[
+                    { shortcut: '/hours', text: 'Our business hours are Monday through Friday, 9:00 AM to 7:00 PM EST.' },
+                    { shortcut: '/pricing', text: 'Our WhatsApp CRM plans start at $49/mo with full broadcasting & multi-agent team inbox.' },
+                    { shortcut: '/payment', text: 'You can complete your order securely via Card, UPI, or Stripe.' },
+                    { shortcut: '/support', text: 'Our support team is available 24/7. An agent will respond shortly.' },
+                ].map((qr) => (
+                    <TouchableOpacity
+                        key={qr.shortcut}
+                        style={localStyles.quickReplyRow}
+                        onPress={() => {
+                            setInputText(qr.text);
+                            setQuickRepliesVisible(false);
+                        }}>
+                        <Text style={localStyles.quickReplyShortcut}>{qr.shortcut}</Text>
+                        <Text style={localStyles.quickReplySnippet}>{qr.text}</Text>
+                    </TouchableOpacity>
+                ))}
+            </SmoothModal>
+
+            {/* Smooth Modal: Interactive Buttons Generator */}
+            <SmoothModal visible={interactiveModalVisible} onClose={() => setInteractiveModalVisible(false)}>
+                <Text style={localStyles.modalSheetTitle}>Create Interactive WhatsApp Buttons</Text>
+
+                <Text style={localStyles.inputLabel}>Body Prompt</Text>
+                <TextInput style={localStyles.styledInput} value={btnPromptText} onChangeText={setBtnPromptText} />
+
+                <Text style={localStyles.inputLabel}>Button 1 Title</Text>
+                <TextInput style={localStyles.styledInput} value={btn1Text} onChangeText={setBtn1Text} />
+
+                <Text style={localStyles.inputLabel}>Button 2 Title</Text>
+                <TextInput style={localStyles.styledInput} value={btn2Text} onChangeText={setBtn2Text} />
+
+                <TouchableOpacity style={localStyles.primaryGreenBtn} onPress={handleSendButtons}>
+                    <Text style={localStyles.primaryGreenBtnText}>Dispatch Interactive Buttons</Text>
+                </TouchableOpacity>
+            </SmoothModal>
+
+            {/* Smooth Modal: 360 Contact CRM Drawer */}
+            <SmoothModal visible={crmDrawerVisible} onClose={() => setCrmDrawerVisible(false)}>
+                <Text style={localStyles.modalSheetTitle}>Contact CRM 360° Profile</Text>
+
+                <View style={localStyles.crmHeaderCard}>
+                    <View style={localStyles.crmAvatarBig}>
+                        <Text style={localStyles.crmAvatarBigText}>{participant.name[0]?.toUpperCase() || 'C'}</Text>
+                    </View>
+                    <Text style={localStyles.crmNameText}>{participant.name}</Text>
+                    <Text style={localStyles.crmPhoneText}>{participant.phone || 'WhatsApp Verified Contact'}</Text>
+                </View>
+
+                <Text style={localStyles.crmSectionHeader}>CRM Tags</Text>
+                <View style={localStyles.tagsRow}>
+                    <View style={[localStyles.tagBadge, { backgroundColor: participant.tag.bg, paddingHorizontal: 10, paddingVertical: 4 }]}>
+                        <Text style={[localStyles.tagBadgeText, { color: participant.tag.color, fontSize: 12 }]}>{participant.tag.label}</Text>
+                    </View>
+                    <View style={[localStyles.tagBadge, { backgroundColor: '#EDE9FE', paddingHorizontal: 10, paddingVertical: 4 }]}>
+                        <Text style={{ color: '#7C3AED', fontSize: 12, fontWeight: '700' }}>VIP Customer</Text>
+                    </View>
+                </View>
+
+                {onOpenDeals && (
+                    <TouchableOpacity
+                        style={localStyles.crmDealsCard}
+                        onPress={() => {
+                            setCrmDrawerVisible(false);
+                            onOpenDeals();
+                        }}>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                            <View>
+                                <Text style={localStyles.crmDealTitle}>Enterprise License Deal ($12,000)</Text>
+                                <Text style={localStyles.crmDealSub}>Stage: Proposal Sent (75% probability)</Text>
+                            </View>
+                            <IconDollar size={20} color="#D97706" />
+                        </View>
+                    </TouchableOpacity>
+                )}
+
+                <Text style={localStyles.crmSectionHeader}>Internal Agent Notes</Text>
+                {contactNotes.map((note, i) => (
+                    <View key={i} style={localStyles.crmNoteItem}>
+                        <Text style={localStyles.crmNoteText}>• {note}</Text>
+                    </View>
+                ))}
+
+                <View style={localStyles.addNoteRow}>
+                    <TextInput
+                        style={localStyles.noteInput}
+                        placeholder="Add internal note..."
+                        placeholderTextColor="#94A3B8"
+                        value={newNoteText}
+                        onChangeText={setNewNoteText}
+                    />
+                    <TouchableOpacity style={localStyles.saveNoteBtn} onPress={handleAddNote}>
+                        <Text style={localStyles.saveNoteBtnText}>Save</Text>
+                    </TouchableOpacity>
+                </View>
+            </SmoothModal>
         </SafeAreaView>
     );
 };
+
+const localStyles = StyleSheet.create({
+    safeArea: {
+        flex: 1,
+        backgroundColor: '#FFFFFF',
+    },
+    headerBar: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        paddingHorizontal: 12,
+        paddingTop: Platform.select({ ios: 4, android: 8 }),
+        paddingBottom: 8,
+        backgroundColor: '#FFFFFF',
+        borderBottomWidth: 1,
+        borderBottomColor: '#F1F5F9',
+        zIndex: 10,
+    },
+    headerLeft: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        flex: 1,
+    },
+    backButton: {
+        padding: 6,
+        marginRight: 4,
+    },
+    avatarWrapper: {
+        position: 'relative',
+        marginRight: 10,
+    },
+    avatar: {
+        width: 38,
+        height: 38,
+        borderRadius: 19,
+        backgroundColor: '#E2E8F0',
+    },
+    avatarPlaceholder: {
+        width: 38,
+        height: 38,
+        borderRadius: 19,
+        backgroundColor: Colors.whatsappTeal,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    avatarText: {
+        color: '#FFFFFF',
+        fontWeight: '700',
+        fontSize: 16,
+    },
+    waBadge: {
+        position: 'absolute',
+        bottom: -1,
+        right: -2,
+        backgroundColor: '#FFFFFF',
+        borderRadius: 8,
+    },
+    headerUserInfo: {
+        justifyContent: 'center',
+        flex: 1,
+    },
+    headerName: {
+        fontSize: 15,
+        fontWeight: '700',
+        color: '#0F172A',
+    },
+    presenceRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginTop: 2,
+    },
+    onlineDot: {
+        width: 6,
+        height: 6,
+        borderRadius: 3,
+        backgroundColor: '#10B981',
+        marginRight: 4,
+    },
+    onlineText: {
+        fontSize: 11,
+        color: '#059669',
+        fontWeight: '600',
+    },
+    tagBadge: {
+        paddingHorizontal: 6,
+        paddingVertical: 1.5,
+        borderRadius: 5,
+        marginLeft: 6,
+    },
+    tagBadgeText: {
+        fontSize: 10,
+        fontWeight: '600',
+    },
+    headerRight: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 12,
+    },
+    headerActionBtn: {
+        padding: 5,
+    },
+    policyBannerActive: {
+        backgroundColor: '#DCFCE7',
+        paddingVertical: 5,
+        paddingHorizontal: 12,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        borderBottomWidth: 1,
+        borderBottomColor: '#BBF7D0',
+    },
+    policyBannerLeft: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        flex: 1,
+    },
+    policyActiveText: {
+        fontSize: 11,
+        color: '#166534',
+        fontWeight: '600',
+        marginLeft: 4,
+    },
+    aiDraftBtn: {
+        backgroundColor: '#059669',
+        paddingHorizontal: 8,
+        paddingVertical: 3,
+        borderRadius: 6,
+        flexDirection: 'row',
+        alignItems: 'center',
+    },
+    aiDraftBtnText: {
+        color: '#FFFFFF',
+        fontSize: 10,
+        fontWeight: '700',
+        marginLeft: 3,
+    },
+    policyBannerExpired: {
+        backgroundColor: '#FEF3C7',
+        paddingVertical: 8,
+        paddingHorizontal: 12,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        borderBottomWidth: 1,
+        borderBottomColor: '#FDE68A',
+    },
+    policyExpiredTitle: {
+        fontSize: 11,
+        color: '#92400E',
+        fontWeight: '700',
+    },
+    policyExpiredSub: {
+        fontSize: 10,
+        color: '#B45309',
+    },
+    sendTemplateBtn: {
+        backgroundColor: '#D97706',
+        paddingHorizontal: 10,
+        paddingVertical: 5,
+        borderRadius: 6,
+    },
+    sendTemplateBtnText: {
+        color: '#FFFFFF',
+        fontSize: 11,
+        fontWeight: '700',
+    },
+    chatContainer: {
+        flex: 1,
+        backgroundColor: '#EFEAE2',
+    },
+    loadingContainer: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    loadingText: {
+        marginTop: 10,
+        color: '#64748B',
+        fontSize: 12,
+    },
+    scrollArea: {
+        flex: 1,
+    },
+    scrollContent: {
+        paddingHorizontal: 12,
+        paddingTop: 10,
+        paddingBottom: 20,
+    },
+    emptyContainer: {
+        flex: 1,
+        alignItems: 'center',
+        justifyContent: 'center',
+        paddingVertical: 60,
+        paddingHorizontal: 20,
+    },
+    emptyIconCircle: {
+        width: 60,
+        height: 60,
+        borderRadius: 30,
+        backgroundColor: '#DCFCE7',
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginBottom: 12,
+    },
+    emptyTitle: {
+        fontSize: 16,
+        fontWeight: '700',
+        color: '#1E293B',
+        marginBottom: 4,
+    },
+    emptySubtitle: {
+        fontSize: 12,
+        color: '#64748B',
+        textAlign: 'center',
+    },
+    bubbleIncoming: {
+        backgroundColor: '#FFFFFF',
+        borderRadius: 12,
+        borderTopLeftRadius: 2,
+        padding: 9,
+        maxWidth: '85%',
+        alignSelf: 'flex-start',
+        marginBottom: 8,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.04,
+        shadowRadius: 2,
+        elevation: 1,
+        position: 'relative',
+    },
+    bubbleOutgoing: {
+        backgroundColor: Colors.whatsappOutgoingBubble,
+        borderRadius: 12,
+        borderTopRightRadius: 2,
+        padding: 9,
+        maxWidth: '85%',
+        alignSelf: 'flex-end',
+        marginBottom: 8,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.04,
+        shadowRadius: 2,
+        elevation: 1,
+        position: 'relative',
+    },
+    quotedPreviewBox: {
+        backgroundColor: 'rgba(0,0,0,0.05)',
+        borderLeftWidth: 3,
+        borderLeftColor: Colors.whatsappGreen,
+        padding: 5,
+        borderRadius: 4,
+        marginBottom: 5,
+    },
+    quotedPreviewLabel: {
+        fontSize: 10.5,
+        fontWeight: '700',
+        color: Colors.whatsappTeal,
+    },
+    bubbleText: {
+        fontSize: 14,
+        color: '#1E293B',
+        lineHeight: 19,
+    },
+    mediaImage: {
+        width: 220,
+        height: 150,
+        borderRadius: 8,
+        backgroundColor: '#E2E8F0',
+    },
+    audioRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingVertical: 2,
+    },
+    audioPlayBtn: {
+        width: 32,
+        height: 32,
+        borderRadius: 16,
+        backgroundColor: Colors.whatsappGreen,
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginRight: 10,
+    },
+    waveformRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        height: 18,
+    },
+    waveBar: {
+        width: 3,
+        borderRadius: 1.5,
+        marginRight: 2.5,
+    },
+    audioDurationText: {
+        fontSize: 10,
+        color: '#64748B',
+        marginTop: 2,
+    },
+    speedPill: {
+        backgroundColor: 'rgba(0,0,0,0.06)',
+        paddingHorizontal: 6,
+        paddingVertical: 2,
+        borderRadius: 4,
+        marginLeft: 6,
+    },
+    speedPillText: {
+        fontSize: 10,
+        fontWeight: '700',
+        color: '#334155',
+    },
+    templateBadge: {
+        backgroundColor: '#E2E8F0',
+        paddingHorizontal: 5,
+        paddingVertical: 2,
+        borderRadius: 4,
+        marginBottom: 4,
+        alignSelf: 'flex-start',
+    },
+    templateBadgeText: {
+        fontSize: 9,
+        fontWeight: '800',
+        color: '#0F172A',
+    },
+    templateCtaRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        borderTopWidth: 1,
+        borderTopColor: 'rgba(0,0,0,0.06)',
+        marginTop: 6,
+        paddingTop: 6,
+        gap: 6,
+    },
+    templateCtaText: {
+        fontSize: 11.5,
+        fontWeight: '700',
+        color: Colors.whatsappTeal,
+    },
+    bubbleFooterRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        alignSelf: 'flex-end',
+        marginTop: 3,
+    },
+    timeText: {
+        fontSize: 10,
+        color: '#64748B',
+    },
+    reactionBadge: {
+        position: 'absolute',
+        bottom: -8,
+        backgroundColor: '#FFFFFF',
+        borderRadius: 10,
+        padding: 3,
+        borderWidth: 1,
+        borderColor: '#E2E8F0',
+        elevation: 2,
+    },
+    quotedActiveBar: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: '#F1F5F9',
+        paddingHorizontal: 12,
+        paddingVertical: 8,
+        borderTopWidth: 1,
+        borderTopColor: '#E2E8F0',
+        borderLeftWidth: 4,
+        borderLeftColor: Colors.whatsappGreen,
+    },
+    quotedAuthorText: {
+        fontSize: 11,
+        fontWeight: '700',
+        color: Colors.whatsappTeal,
+    },
+    quotedSnippetText: {
+        fontSize: 12,
+        color: '#475569',
+    },
+    floatingReactionsTray: {
+        position: 'absolute',
+        bottom: 64,
+        alignSelf: 'center',
+        backgroundColor: '#FFFFFF',
+        borderRadius: 22,
+        paddingHorizontal: 12,
+        paddingVertical: 6,
+        flexDirection: 'row',
+        alignItems: 'center',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 3 },
+        shadowOpacity: 0.15,
+        shadowRadius: 6,
+        elevation: 6,
+        zIndex: 50,
+    },
+    reactionItem: {
+        paddingHorizontal: 8,
+        paddingVertical: 2,
+    },
+    voiceRecordingBar: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingHorizontal: 12,
+        paddingVertical: 8,
+        backgroundColor: '#FFFFFF',
+        borderTopWidth: 1,
+        borderTopColor: '#E2E8F0',
+    },
+    voiceTimerRow: {
+        flex: 1,
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginLeft: 10,
+    },
+    pulsatingRedDot: {
+        width: 8,
+        height: 8,
+        borderRadius: 4,
+        backgroundColor: '#EF4444',
+        marginRight: 6,
+    },
+    voiceTimerText: {
+        fontSize: 14,
+        fontWeight: '700',
+        color: '#0F172A',
+    },
+    voiceInstructionsText: {
+        fontSize: 11,
+        color: '#64748B',
+        marginLeft: 10,
+    },
+    composerRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingHorizontal: 8,
+        paddingVertical: 6,
+        backgroundColor: '#FFFFFF',
+        borderTopWidth: 1,
+        borderTopColor: '#F1F5F9',
+        gap: 6,
+    },
+    attachPlusBtn: {
+        width: 36,
+        height: 36,
+        borderRadius: 18,
+        backgroundColor: '#F1F5F9',
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    plusText: {
+        fontSize: 22,
+        color: '#475569',
+        lineHeight: 24,
+    },
+    inputPill: {
+        flex: 1,
+        minHeight: 38,
+        maxHeight: 100,
+        backgroundColor: '#F8FAFC',
+        borderRadius: 19,
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingHorizontal: 12,
+        borderWidth: 1,
+        borderColor: '#E2E8F0',
+    },
+    composerInput: {
+        flex: 1,
+        fontSize: 14,
+        color: '#1E293B',
+        paddingVertical: Platform.OS === 'ios' ? 8 : 4,
+    },
+    aiDraftPillBtn: {
+        padding: 4,
+        marginLeft: 4,
+    },
+    sendCircleBtn: {
+        width: 38,
+        height: 38,
+        borderRadius: 19,
+        backgroundColor: Colors.whatsappGreen,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    modalSheetTitle: {
+        fontSize: 16,
+        fontWeight: '800',
+        color: '#0F172A',
+        marginBottom: 14,
+    },
+    modalActionRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingVertical: 11,
+        borderBottomWidth: 1,
+        borderBottomColor: '#F1F5F9',
+    },
+    modalActionIcon: {
+        width: 36,
+        height: 36,
+        borderRadius: 18,
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginRight: 12,
+    },
+    modalActionTitle: {
+        fontSize: 14,
+        fontWeight: '600',
+        color: '#1E293B',
+    },
+    modalActionSub: {
+        fontSize: 11,
+        color: '#64748B',
+    },
+    inputLabel: {
+        fontSize: 12,
+        fontWeight: '700',
+        color: '#475569',
+        marginTop: 8,
+        marginBottom: 4,
+    },
+    styledInput: {
+        backgroundColor: '#F8FAFC',
+        borderRadius: 8,
+        paddingHorizontal: 12,
+        paddingVertical: 9,
+        fontSize: 13,
+        color: '#0F172A',
+        borderWidth: 1,
+        borderColor: '#E2E8F0',
+        marginBottom: 6,
+    },
+    primaryGreenBtn: {
+        backgroundColor: Colors.whatsappGreen,
+        borderRadius: 10,
+        paddingVertical: 12,
+        alignItems: 'center',
+        marginTop: 12,
+    },
+    primaryGreenBtnText: {
+        color: '#FFFFFF',
+        fontSize: 14,
+        fontWeight: '700',
+    },
+    quickReplyRow: {
+        paddingVertical: 10,
+        borderBottomWidth: 1,
+        borderBottomColor: '#F1F5F9',
+    },
+    quickReplyShortcut: {
+        fontSize: 13,
+        fontWeight: '700',
+        color: Colors.whatsappGreen,
+    },
+    quickReplySnippet: {
+        fontSize: 12,
+        color: '#475569',
+        marginTop: 2,
+    },
+    crmHeaderCard: {
+        alignItems: 'center',
+        marginBottom: 14,
+    },
+    crmAvatarBig: {
+        width: 56,
+        height: 56,
+        borderRadius: 28,
+        backgroundColor: Colors.whatsappTeal,
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginBottom: 6,
+    },
+    crmAvatarBigText: {
+        color: '#FFFFFF',
+        fontSize: 22,
+        fontWeight: '700',
+    },
+    crmNameText: {
+        fontSize: 16,
+        fontWeight: '700',
+        color: '#0F172A',
+    },
+    crmPhoneText: {
+        fontSize: 12,
+        color: '#64748B',
+        marginTop: 2,
+    },
+    crmSectionHeader: {
+        fontSize: 11,
+        fontWeight: '700',
+        color: '#64748B',
+        textTransform: 'uppercase',
+        letterSpacing: 0.5,
+        marginTop: 10,
+        marginBottom: 6,
+    },
+    tagsRow: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        gap: 6,
+        marginBottom: 10,
+    },
+    crmDealsCard: {
+        backgroundColor: '#F8FAFC',
+        borderRadius: 10,
+        padding: 12,
+        borderWidth: 1,
+        borderColor: '#E2E8F0',
+        marginBottom: 10,
+    },
+    crmDealTitle: {
+        fontSize: 13,
+        fontWeight: '700',
+        color: '#0F172A',
+    },
+    crmDealSub: {
+        fontSize: 11,
+        color: '#059669',
+        marginTop: 2,
+    },
+    crmNoteItem: {
+        backgroundColor: '#F1F5F9',
+        borderRadius: 8,
+        padding: 8,
+        marginBottom: 5,
+    },
+    crmNoteText: {
+        fontSize: 12,
+        color: '#1E293B',
+    },
+    addNoteRow: {
+        flexDirection: 'row',
+        marginTop: 8,
+        marginBottom: 12,
+    },
+    noteInput: {
+        flex: 1,
+        backgroundColor: '#F8FAFC',
+        borderWidth: 1,
+        borderColor: '#CBD5E1',
+        borderRadius: 8,
+        paddingHorizontal: 10,
+        paddingVertical: 7,
+        fontSize: 12,
+        color: '#0F172A',
+    },
+    saveNoteBtn: {
+        backgroundColor: Colors.whatsappGreen,
+        borderRadius: 8,
+        paddingHorizontal: 14,
+        justifyContent: 'center',
+        marginLeft: 8,
+    },
+    saveNoteBtnText: {
+        color: '#FFFFFF',
+        fontWeight: '700',
+        fontSize: 12,
+    },
+});

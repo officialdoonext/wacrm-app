@@ -278,4 +278,18 @@ export const styles = StyleSheet.create({
         borderRadius: 3,
         backgroundColor: '#EF4444',
     },
+    sectionHeaderTitle: {
+        fontSize: 12,
+        fontWeight: '700',
+        color: '#64748B',
+        textTransform: 'uppercase',
+        letterSpacing: 0.6,
+        marginTop: 14,
+        marginBottom: 8,
+        marginLeft: 4,
+    },
+    modalInput: {
+        fontSize: 13,
+        color: '#0F172A',
+    },
 });

@@ -18,6 +18,9 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { styles } from './styles';
 import { Colors } from '../../theme/colors';
 import { PaperPlaneIcon } from '../../components/PaperPlaneIcon';
+import { BrandLogo } from '../../components/BrandLogo';
+import { AppHeader } from '../../components/AppHeader';
+import { SmoothModal } from '../../components/SmoothModal';
 import { ArrowRightIcon } from '../../components/WelcomeIcons';
 import {
     SearchIcon,
@@ -39,7 +42,6 @@ import {
     AutoWaveIcon,
     AutoReplyBubbleIcon,
     AutoCalendarIcon,
-    AutoTagIcon,
     AutoTeamIcon,
 } from '../../components/AutomationIcons';
 import { crmService, DynamicAutomation } from '../../services/crmService';
@@ -182,51 +184,12 @@ export const AutomationScreen: React.FC<AutomationScreenProps> = ({ onNavigateTa
         <SafeAreaView style={styles.safeArea} edges={['top', 'bottom', 'left', 'right']}>
             <StatusBar barStyle="dark-content" />
             <View style={styles.container}>
-                {/* Top Header */}
-                <View style={styles.topHeader}>
-                    <View style={styles.brandLeft}>
-                        <PaperPlaneIcon size={32} color={Colors.primaryGreen} />
-                        <View style={styles.brandTitles}>
-                            <Text style={styles.brandTitle}>WhatsAppNext</Text>
-                            <Text style={styles.brandTagline}>Automate. Engage. Grow.</Text>
-                        </View>
-                    </View>
-
-                    <View style={styles.headerRightActions}>
-                        <TouchableOpacity style={styles.iconBtn} activeOpacity={0.7}>
-                            <SearchIcon size={20} color="#334155" />
-                        </TouchableOpacity>
-
-                        <TouchableOpacity style={styles.iconBtn} activeOpacity={0.7}>
-                            <BellIcon size={20} color="#334155" />
-                            <View style={styles.notificationBadgeDot} />
-                        </TouchableOpacity>
-
-                        <TouchableOpacity
-                            style={styles.profileAvatarWrap}
-                            activeOpacity={0.8}
-                            onPress={() => onNavigateTab && onNavigateTab('More')}>
-                            {profile?.avatar_url ? (
-                                <Image source={{ uri: profile.avatar_url }} style={styles.profileAvatar} />
-                            ) : (
-                                <View
-                                    style={[
-                                        styles.profileAvatar,
-                                        {
-                                            backgroundColor: '#059669',
-                                            justifyContent: 'center',
-                                            alignItems: 'center',
-                                        },
-                                    ]}>
-                                    <Text style={{ color: '#FFFFFF', fontWeight: '700', fontSize: 13 }}>
-                                        {profile?.full_name ? profile.full_name[0].toUpperCase() : 'A'}
-                                    </Text>
-                                </View>
-                            )}
-                            <View style={styles.onlineIndicator} />
-                        </TouchableOpacity>
-                    </View>
-                </View>
+                {/* Standard Unified Header: Logo on Left, Profile on Right */}
+                <AppHeader
+                    onPressProfile={() => onNavigateTab && onNavigateTab('More')}
+                    onPressSearch={() => {}}
+                    unreadCount={0}
+                />
 
                 {/* Scrollable Main FlatList */}
                 <View style={styles.listContainer}>
@@ -453,136 +416,117 @@ export const AutomationScreen: React.FC<AutomationScreenProps> = ({ onNavigateTa
                 </View>
             </View>
 
-            {/* Modal: Create Automation */}
-            <Modal
-                visible={createModalVisible}
-                transparent={true}
-                animationType="slide"
-                onRequestClose={() => setCreateModalVisible(false)}>
-                <View
+            {/* Smooth Modal: Create Automation */}
+            <SmoothModal visible={createModalVisible} onClose={() => setCreateModalVisible(false)}>
+                <Text style={{ fontSize: 18, fontWeight: '700', color: '#1E293B', marginBottom: 4 }}>
+                    Create Automation
+                </Text>
+                <Text style={{ fontSize: 13, color: '#64748B', marginBottom: 18 }}>
+                    Set up rules that automatically respond to incoming customer messages.
+                </Text>
+
+                <Text style={{ fontSize: 12, fontWeight: '600', color: '#475569', marginBottom: 4 }}>
+                    Automation Title *
+                </Text>
+                <TextInput
                     style={{
-                        flex: 1,
-                        backgroundColor: 'rgba(0,0,0,0.5)',
-                        justifyContent: 'flex-end',
-                    }}>
-                    <View
-                        style={{
-                            backgroundColor: '#FFFFFF',
-                            borderTopLeftRadius: 24,
-                            borderTopRightRadius: 24,
-                            padding: 24,
-                        }}>
-                        <Text style={{ fontSize: 18, fontWeight: '700', color: '#1E293B', marginBottom: 4 }}>
-                            Create Automation
-                        </Text>
-                        <Text style={{ fontSize: 13, color: '#64748B', marginBottom: 18 }}>
-                            Set up rules that automatically respond to incoming customer messages.
-                        </Text>
+                        height: 42,
+                        borderWidth: 1,
+                        borderColor: '#E2E8F0',
+                        borderRadius: 8,
+                        paddingHorizontal: 12,
+                        marginBottom: 12,
+                        fontSize: 14,
+                        color: '#1E293B',
+                    }}
+                    placeholder="e.g. Instant Pricing Quote"
+                    placeholderTextColor="#94A3B8"
+                    value={nameInput}
+                    onChangeText={setNameInput}
+                />
 
-                        <Text style={{ fontSize: 12, fontWeight: '600', color: '#475569', marginBottom: 4 }}>
-                            Automation Title *
-                        </Text>
-                        <TextInput
+                <Text style={{ fontSize: 12, fontWeight: '600', color: '#475569', marginBottom: 4 }}>
+                    Trigger Type
+                </Text>
+                <View style={{ flexDirection: 'row', gap: 8, marginBottom: 12 }}>
+                    {['new_message', 'keyword_match', 'tag_added'].map((t) => (
+                        <TouchableOpacity
+                            key={t}
                             style={{
-                                height: 42,
-                                borderWidth: 1,
-                                borderColor: '#E2E8F0',
-                                borderRadius: 8,
-                                paddingHorizontal: 12,
-                                marginBottom: 12,
-                                fontSize: 14,
-                                color: '#1E293B',
+                                paddingHorizontal: 10,
+                                paddingVertical: 6,
+                                borderRadius: 6,
+                                backgroundColor: triggerType === t ? Colors.primaryGreen : '#F1F5F9',
                             }}
-                            placeholder="e.g. Instant Pricing Quote"
-                            placeholderTextColor="#94A3B8"
-                            value={nameInput}
-                            onChangeText={setNameInput}
-                        />
-
-                        <Text style={{ fontSize: 12, fontWeight: '600', color: '#475569', marginBottom: 4 }}>
-                            Trigger Type
-                        </Text>
-                        <View style={{ flexDirection: 'row', gap: 8, marginBottom: 12 }}>
-                            {['new_message', 'keyword_match', 'tag_added'].map((t) => (
-                                <TouchableOpacity
-                                    key={t}
-                                    style={{
-                                        paddingHorizontal: 10,
-                                        paddingVertical: 6,
-                                        borderRadius: 6,
-                                        backgroundColor: triggerType === t ? Colors.primaryGreen : '#F1F5F9',
-                                    }}
-                                    onPress={() => setTriggerType(t)}>
-                                    <Text
-                                        style={{
-                                            fontSize: 12,
-                                            fontWeight: '600',
-                                            color: triggerType === t ? '#FFFFFF' : '#475569',
-                                        }}>
-                                        {t.replace('_', ' ')}
-                                    </Text>
-                                </TouchableOpacity>
-                            ))}
-                        </View>
-
-                        <Text style={{ fontSize: 12, fontWeight: '600', color: '#475569', marginBottom: 4 }}>
-                            Description
-                        </Text>
-                        <TextInput
-                            style={{
-                                height: 42,
-                                borderWidth: 1,
-                                borderColor: '#E2E8F0',
-                                borderRadius: 8,
-                                paddingHorizontal: 12,
-                                marginBottom: 20,
-                                fontSize: 14,
-                                color: '#1E293B',
-                            }}
-                            placeholder="e.g. Automatically send catalog when user asks for pricing"
-                            placeholderTextColor="#94A3B8"
-                            value={descriptionInput}
-                            onChangeText={setDescriptionInput}
-                        />
-
-                        <View style={{ flexDirection: 'row', gap: 12 }}>
-                            <TouchableOpacity
+                            onPress={() => setTriggerType(t)}>
+                            <Text
                                 style={{
-                                    flex: 1,
-                                    height: 44,
-                                    borderRadius: 10,
-                                    borderWidth: 1,
-                                    borderColor: '#E2E8F0',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                }}
-                                onPress={() => setCreateModalVisible(false)}>
-                                <Text style={{ color: '#64748B', fontWeight: '600', fontSize: 14 }}>Cancel</Text>
-                            </TouchableOpacity>
-
-                            <TouchableOpacity
-                                style={{
-                                    flex: 1,
-                                    height: 44,
-                                    borderRadius: 10,
-                                    backgroundColor: Colors.primaryGreen,
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                }}
-                                disabled={isSaving}
-                                onPress={handleCreateAutomation}>
-                                {isSaving ? (
-                                    <ActivityIndicator color="#FFFFFF" size="small" />
-                                ) : (
-                                    <Text style={{ color: '#FFFFFF', fontWeight: '700', fontSize: 14 }}>
-                                        Save Automation
-                                    </Text>
-                                )}
-                            </TouchableOpacity>
-                        </View>
-                    </View>
+                                    fontSize: 12,
+                                    fontWeight: '600',
+                                    color: triggerType === t ? '#FFFFFF' : '#475569',
+                                }}>
+                                {t.replace('_', ' ')}
+                            </Text>
+                        </TouchableOpacity>
+                    ))}
                 </View>
-            </Modal>
+
+                <Text style={{ fontSize: 12, fontWeight: '600', color: '#475569', marginBottom: 4 }}>
+                    Description
+                </Text>
+                <TextInput
+                    style={{
+                        height: 42,
+                        borderWidth: 1,
+                        borderColor: '#E2E8F0',
+                        borderRadius: 8,
+                        paddingHorizontal: 12,
+                        marginBottom: 20,
+                        fontSize: 14,
+                        color: '#1E293B',
+                    }}
+                    placeholder="e.g. Automatically send catalog when user asks for pricing"
+                    placeholderTextColor="#94A3B8"
+                    value={descriptionInput}
+                    onChangeText={setDescriptionInput}
+                />
+
+                <View style={{ flexDirection: 'row', gap: 12 }}>
+                    <TouchableOpacity
+                        style={{
+                            flex: 1,
+                            height: 44,
+                            borderRadius: 10,
+                            borderWidth: 1,
+                            borderColor: '#E2E8F0',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                        }}
+                        onPress={() => setCreateModalVisible(false)}>
+                        <Text style={{ color: '#64748B', fontWeight: '600', fontSize: 14 }}>Cancel</Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                        style={{
+                            flex: 1,
+                            height: 44,
+                            borderRadius: 10,
+                            backgroundColor: Colors.primaryGreen,
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                        }}
+                        disabled={isSaving}
+                        onPress={handleCreateAutomation}>
+                        {isSaving ? (
+                            <ActivityIndicator color="#FFFFFF" size="small" />
+                        ) : (
+                            <Text style={{ color: '#FFFFFF', fontWeight: '700', fontSize: 14 }}>
+                                Save Automation
+                            </Text>
+                        )}
+                    </TouchableOpacity>
+                </View>
+            </SmoothModal>
         </SafeAreaView>
     );
 };

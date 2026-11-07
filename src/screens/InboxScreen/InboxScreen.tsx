@@ -16,6 +16,9 @@ import Svg, { Path, Circle, Rect } from 'react-native-svg';
 import { styles } from './styles';
 import { Colors } from '../../theme/colors';
 import { PaperPlaneIcon } from '../../components/PaperPlaneIcon';
+import { BrandLogo } from '../../components/BrandLogo';
+import { AppHeader } from '../../components/AppHeader';
+import { SmoothModal } from '../../components/SmoothModal';
 import {
     SearchIcon,
     FilterIcon,
@@ -88,11 +91,15 @@ export interface ChatItem {
 interface InboxScreenProps {
     onSelectChat?: (chat: ChatItem) => void;
     onNavigateTab?: (tab: 'Inbox' | 'Automation' | 'Contacts' | 'Broadcast' | 'More') => void;
+    onOpenDashboard?: () => void;
+    onOpenNotifications?: () => void;
 }
 
 export const InboxScreen: React.FC<InboxScreenProps> = ({
     onSelectChat,
     onNavigateTab,
+    onOpenDashboard,
+    onOpenNotifications,
 }) => {
     const [conversations, setConversations] = useState<DynamicConversation[]>([]);
     const [activeTab, setActiveTab] = useState<'All' | 'Unread' | 'My Chats' | 'Groups'>('All');
@@ -249,51 +256,13 @@ export const InboxScreen: React.FC<InboxScreenProps> = ({
         <SafeAreaView style={styles.safeArea} edges={['top', 'bottom', 'left', 'right']}>
             <StatusBar barStyle="dark-content" />
             <View style={styles.container}>
-                {/* Top Header */}
-                <View style={styles.topHeader}>
-                    <View style={styles.brandLeft}>
-                        <PaperPlaneIcon size={32} color={Colors.primaryGreen} />
-                        <View style={styles.brandTitles}>
-                            <Text style={styles.brandTitle}>WhatsAppNext</Text>
-                            <Text style={styles.brandTagline}>Automate. Engage. Grow.</Text>
-                        </View>
-                    </View>
-
-                    <View style={styles.headerRightActions}>
-                        <TouchableOpacity style={styles.iconBtn} activeOpacity={0.7}>
-                            <SearchIcon size={20} color="#334155" />
-                        </TouchableOpacity>
-
-                        <TouchableOpacity style={styles.iconBtn} activeOpacity={0.7}>
-                            <BellIcon size={20} color="#334155" />
-                            {unreadCountTotal > 0 && <View style={styles.notificationBadgeDot} />}
-                        </TouchableOpacity>
-
-                        <TouchableOpacity
-                            style={styles.profileAvatarWrap}
-                            activeOpacity={0.8}
-                            onPress={() => onNavigateTab && onNavigateTab('More')}>
-                            {profile?.avatar_url ? (
-                                <Image source={{ uri: profile.avatar_url }} style={styles.profileAvatar} />
-                            ) : (
-                                <View
-                                    style={[
-                                        styles.profileAvatar,
-                                        {
-                                            backgroundColor: '#059669',
-                                            alignItems: 'center',
-                                            justifyContent: 'center',
-                                        },
-                                    ]}>
-                                    <Text style={{ color: '#FFFFFF', fontWeight: '700', fontSize: 13 }}>
-                                        {profile?.full_name ? profile.full_name[0].toUpperCase() : 'A'}
-                                    </Text>
-                                </View>
-                            )}
-                            <View style={styles.onlineIndicator} />
-                        </TouchableOpacity>
-                    </View>
-                </View>
+                {/* Standard Unified Top Header: Logo on Left, Profile & Actions on Right */}
+                <AppHeader
+                    onPressDashboard={onOpenDashboard}
+                    onPressNotifications={onOpenNotifications}
+                    onPressProfile={() => onNavigateTab && onNavigateTab('More')}
+                    unreadCount={unreadCountTotal}
+                />
 
                 {/* Search Bar & Filter Button */}
                 <View style={styles.searchRow}>
@@ -587,111 +556,92 @@ export const InboxScreen: React.FC<InboxScreenProps> = ({
                 </View>
             </View>
 
-            {/* Modal: Start New Chat */}
-            <Modal
-                visible={newChatModalVisible}
-                transparent={true}
-                animationType="slide"
-                onRequestClose={() => setNewChatModalVisible(false)}>
-                <View
+            {/* Smooth Modal: Start New Chat */}
+            <SmoothModal visible={newChatModalVisible} onClose={() => setNewChatModalVisible(false)}>
+                <Text style={{ fontSize: 18, fontWeight: '700', color: '#1E293B', marginBottom: 4 }}>
+                    Start New WhatsApp Chat
+                </Text>
+                <Text style={{ fontSize: 13, color: '#64748B', marginBottom: 20 }}>
+                    Enter contact phone number with country code (e.g. +91 98765 43210).
+                </Text>
+
+                <Text style={{ fontSize: 12, fontWeight: '600', color: '#475569', marginBottom: 6 }}>
+                    Contact Name (Optional)
+                </Text>
+                <TextInput
                     style={{
-                        flex: 1,
-                        backgroundColor: 'rgba(0,0,0,0.5)',
-                        justifyContent: 'flex-end',
-                    }}>
-                    <View
+                        height: 44,
+                        borderWidth: 1,
+                        borderColor: '#E2E8F0',
+                        borderRadius: 10,
+                        paddingHorizontal: 12,
+                        marginBottom: 14,
+                        fontSize: 14,
+                        color: '#1E293B',
+                    }}
+                    placeholder="e.g. John Doe"
+                    placeholderTextColor="#94A3B8"
+                    value={newChatName}
+                    onChangeText={setNewChatName}
+                />
+
+                <Text style={{ fontSize: 12, fontWeight: '600', color: '#475569', marginBottom: 6 }}>
+                    WhatsApp Phone Number *
+                </Text>
+                <TextInput
+                    style={{
+                        height: 44,
+                        borderWidth: 1,
+                        borderColor: '#E2E8F0',
+                        borderRadius: 10,
+                        paddingHorizontal: 12,
+                        marginBottom: 20,
+                        fontSize: 14,
+                        color: '#1E293B',
+                    }}
+                    placeholder="+91 98765 43210"
+                    placeholderTextColor="#94A3B8"
+                    keyboardType="phone-pad"
+                    value={newChatPhone}
+                    onChangeText={setNewChatPhone}
+                />
+
+                <View style={{ flexDirection: 'row', gap: 12 }}>
+                    <TouchableOpacity
                         style={{
-                            backgroundColor: '#FFFFFF',
-                            borderTopLeftRadius: 24,
-                            borderTopRightRadius: 24,
-                            padding: 24,
-                        }}>
-                        <Text style={{ fontSize: 18, fontWeight: '700', color: '#1E293B', marginBottom: 4 }}>
-                            Start New WhatsApp Chat
-                        </Text>
-                        <Text style={{ fontSize: 13, color: '#64748B', marginBottom: 20 }}>
-                            Enter contact phone number with country code (e.g. +91 98765 43210).
-                        </Text>
+                            flex: 1,
+                            height: 44,
+                            borderRadius: 10,
+                            borderWidth: 1,
+                            borderColor: '#E2E8F0',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                        }}
+                        onPress={() => setNewChatModalVisible(false)}>
+                        <Text style={{ color: '#64748B', fontWeight: '600', fontSize: 14 }}>Cancel</Text>
+                    </TouchableOpacity>
 
-                        <Text style={{ fontSize: 12, fontWeight: '600', color: '#475569', marginBottom: 6 }}>
-                            Contact Name (Optional)
-                        </Text>
-                        <TextInput
-                            style={{
-                                height: 44,
-                                borderWidth: 1,
-                                borderColor: '#E2E8F0',
-                                borderRadius: 10,
-                                paddingHorizontal: 12,
-                                marginBottom: 14,
-                                fontSize: 14,
-                                color: '#1E293B',
-                            }}
-                            placeholder="e.g. John Doe"
-                            placeholderTextColor="#94A3B8"
-                            value={newChatName}
-                            onChangeText={setNewChatName}
-                        />
-
-                        <Text style={{ fontSize: 12, fontWeight: '600', color: '#475569', marginBottom: 6 }}>
-                            WhatsApp Phone Number *
-                        </Text>
-                        <TextInput
-                            style={{
-                                height: 44,
-                                borderWidth: 1,
-                                borderColor: '#E2E8F0',
-                                borderRadius: 10,
-                                paddingHorizontal: 12,
-                                marginBottom: 20,
-                                fontSize: 14,
-                                color: '#1E293B',
-                            }}
-                            placeholder="+91 98765 43210"
-                            placeholderTextColor="#94A3B8"
-                            keyboardType="phone-pad"
-                            value={newChatPhone}
-                            onChangeText={setNewChatPhone}
-                        />
-
-                        <View style={{ flexDirection: 'row', gap: 12 }}>
-                            <TouchableOpacity
-                                style={{
-                                    flex: 1,
-                                    height: 44,
-                                    borderRadius: 10,
-                                    borderWidth: 1,
-                                    borderColor: '#E2E8F0',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                }}
-                                onPress={() => setNewChatModalVisible(false)}>
-                                <Text style={{ color: '#64748B', fontWeight: '600', fontSize: 14 }}>Cancel</Text>
-                            </TouchableOpacity>
-
-                            <TouchableOpacity
-                                style={{
-                                    flex: 1,
-                                    height: 44,
-                                    borderRadius: 10,
-                                    backgroundColor: Colors.primaryGreen,
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                }}
-                                disabled={isCreatingChat}
-                                onPress={handleStartNewChat}>
-                                {isCreatingChat ? (
-                                    <ActivityIndicator color="#FFFFFF" size="small" />
-                                ) : (
-                                    <Text style={{ color: '#FFFFFF', fontWeight: '700', fontSize: 14 }}>
-                                        Open Chat
-                                    </Text>
-                                )}
-                            </TouchableOpacity>
-                        </View>
-                    </View>
+                    <TouchableOpacity
+                        style={{
+                            flex: 1,
+                            height: 44,
+                            borderRadius: 10,
+                            backgroundColor: Colors.primaryGreen,
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                        }}
+                        disabled={isCreatingChat}
+                        onPress={handleStartNewChat}>
+                        {isCreatingChat ? (
+                            <ActivityIndicator color="#FFFFFF" size="small" />
+                        ) : (
+                            <Text style={{ color: '#FFFFFF', fontWeight: '700', fontSize: 14 }}>
+                                Open Chat
+                            </Text>
+                        )}
+                    </TouchableOpacity>
                 </View>
-            </Modal>
+            </SmoothModal>
         </SafeAreaView>
     );
 };

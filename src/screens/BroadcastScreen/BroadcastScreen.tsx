@@ -17,6 +17,10 @@ import Svg, { Path } from 'react-native-svg';
 import { styles } from './styles';
 import { Colors } from '../../theme/colors';
 import { PaperPlaneIcon } from '../../components/PaperPlaneIcon';
+import { BrandLogo } from '../../components/BrandLogo';
+import { AppHeader } from '../../components/AppHeader';
+import { SmoothModal } from '../../components/SmoothModal';
+import { IconCheck } from '../../components/AppIcons';
 import { ArrowRightIcon } from '../../components/WelcomeIcons';
 import {
     SearchIcon,
@@ -40,8 +44,6 @@ import {
     MetricReplyIcon,
     MetricUsersIcon,
     SpecialOfferIcon,
-    DiscountTagIcon,
-    BirthdayCakeIcon,
     FailedCrossCircleIcon,
 } from '../../components/BroadcastIcons';
 import { BroadcastOrbitGraphic } from '../../components/BroadcastOrbitGraphic';
@@ -73,11 +75,17 @@ export const BroadcastScreen: React.FC<BroadcastScreenProps> = ({ onNavigateTab 
     const [refreshing, setRefreshing] = useState(false);
     const [profile, setProfile] = useState<UserProfile | null>(null);
 
-    // Create Broadcast Modal State
+    // 4-Step Broadcast Wizard State (Module 2.6.2)
     const [createModalVisible, setCreateModalVisible] = useState(false);
+    const [wizardStep, setWizardStep] = useState<1 | 2 | 3 | 4>(1);
     const [campaignName, setCampaignName] = useState('');
+    const [campaignGoal, setCampaignGoal] = useState<'marketing' | 'utility'>('marketing');
     const [templateName, setTemplateName] = useState('welcome_offer');
-    const [recipientsCount, setRecipientsCount] = useState('');
+    const [templateVar1, setTemplateVar1] = useState('Valued Customer');
+    const [templateVar2, setTemplateVar2] = useState('DISCOUNT20');
+    const [selectedSegment, setSelectedSegment] = useState<'all' | 'leads' | 'customers'>('all');
+    const [recipientsCount, setRecipientsCount] = useState('1250');
+    const [scheduleMode, setScheduleMode] = useState<'now' | 'scheduled'>('now');
     const [isCreating, setIsCreating] = useState(false);
 
     useEffect(() => {
@@ -152,51 +160,12 @@ export const BroadcastScreen: React.FC<BroadcastScreenProps> = ({ onNavigateTab 
         <SafeAreaView style={styles.safeArea} edges={['top', 'bottom', 'left', 'right']}>
             <StatusBar barStyle="dark-content" />
             <View style={styles.container}>
-                {/* Top Header */}
-                <View style={styles.topHeader}>
-                    <View style={styles.brandLeft}>
-                        <PaperPlaneIcon size={32} color={Colors.primaryGreen} />
-                        <View style={styles.brandTitles}>
-                            <Text style={styles.brandTitle}>WhatsAppNext</Text>
-                            <Text style={styles.brandTagline}>Automate. Engage. Grow.</Text>
-                        </View>
-                    </View>
-
-                    <View style={styles.headerRightActions}>
-                        <TouchableOpacity style={styles.iconBtn} activeOpacity={0.7}>
-                            <SearchIcon size={20} color="#334155" />
-                        </TouchableOpacity>
-
-                        <TouchableOpacity style={styles.iconBtn} activeOpacity={0.7}>
-                            <BellIcon size={20} color="#334155" />
-                            <View style={styles.notificationBadgeDot} />
-                        </TouchableOpacity>
-
-                        <TouchableOpacity
-                            style={styles.profileAvatarWrap}
-                            activeOpacity={0.8}
-                            onPress={() => onNavigateTab && onNavigateTab('More')}>
-                            {profile?.avatar_url ? (
-                                <Image source={{ uri: profile.avatar_url }} style={styles.profileAvatar} />
-                            ) : (
-                                <View
-                                    style={[
-                                        styles.profileAvatar,
-                                        {
-                                            backgroundColor: '#059669',
-                                            justifyContent: 'center',
-                                            alignItems: 'center',
-                                        },
-                                    ]}>
-                                    <Text style={{ color: '#FFFFFF', fontWeight: '700', fontSize: 13 }}>
-                                        {profile?.full_name ? profile.full_name[0].toUpperCase() : 'A'}
-                                    </Text>
-                                </View>
-                            )}
-                            <View style={styles.onlineIndicator} />
-                        </TouchableOpacity>
-                    </View>
-                </View>
+                {/* Standard Unified Header: Logo on Left, Profile on Right */}
+                <AppHeader
+                    onPressProfile={() => onNavigateTab && onNavigateTab('More')}
+                    onPressSearch={() => {}}
+                    unreadCount={0}
+                />
 
                 {/* Scrollable Main Area */}
                 <View style={styles.listWrapper}>
@@ -498,131 +467,311 @@ export const BroadcastScreen: React.FC<BroadcastScreenProps> = ({ onNavigateTab 
                 </View>
             </View>
 
-            {/* Modal: Create Broadcast */}
-            <Modal
-                visible={createModalVisible}
-                transparent={true}
-                animationType="slide"
-                onRequestClose={() => setCreateModalVisible(false)}>
-                <View
-                    style={{
-                        flex: 1,
-                        backgroundColor: 'rgba(0,0,0,0.5)',
-                        justifyContent: 'flex-end',
-                    }}>
-                    <View
-                        style={{
-                            backgroundColor: '#FFFFFF',
-                            borderTopLeftRadius: 24,
-                            borderTopRightRadius: 24,
-                            padding: 24,
-                        }}>
-                        <Text style={{ fontSize: 18, fontWeight: '700', color: '#1E293B', marginBottom: 4 }}>
-                            Create WhatsApp Broadcast
+            {/* Smooth Modal: 4-Step Broadcast Creation Wizard (Module 2.6.2) */}
+            <SmoothModal visible={createModalVisible} onClose={() => setCreateModalVisible(false)} maxHeight="90%">
+                {/* Wizard Step Progress Tracker */}
+                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+                    {[
+                        { step: 1, label: 'Template' },
+                        { step: 2, label: 'Audience' },
+                        { step: 3, label: 'Personalize' },
+                        { step: 4, label: 'Launch' },
+                    ].map((s) => (
+                        <View key={s.step} style={{ alignItems: 'center', flex: 1 }}>
+                            <View
+                                style={{
+                                    width: 28,
+                                    height: 28,
+                                    borderRadius: 14,
+                                    backgroundColor: wizardStep >= s.step ? Colors.whatsappGreen : '#F1F5F9',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    marginBottom: 4,
+                                }}>
+                                <Text
+                                    style={{
+                                        fontSize: 12,
+                                        fontWeight: '700',
+                                        color: wizardStep >= s.step ? '#FFFFFF' : '#64748B',
+                                    }}>
+                                    {s.step}
+                                </Text>
+                            </View>
+                            <Text
+                                style={{
+                                    fontSize: 10,
+                                    fontWeight: wizardStep === s.step ? '700' : '500',
+                                    color: wizardStep === s.step ? '#0F172A' : '#94A3B8',
+                                }}>
+                                {s.label}
+                            </Text>
+                        </View>
+                    ))}
+                </View>
+
+                {/* Step 1: Template Selection */}
+                {wizardStep === 1 && (
+                    <View>
+                        <Text style={{ fontSize: 17, fontWeight: '700', color: '#0F172A', marginBottom: 4 }}>
+                            Step 1: Select Meta Approved Template
                         </Text>
-                        <Text style={{ fontSize: 13, color: '#64748B', marginBottom: 18 }}>
-                            Send pre-approved Meta message templates to your audience.
+                        <Text style={{ fontSize: 12, color: '#64748B', marginBottom: 14 }}>
+                            Mass broadcasts must use pre-approved Meta message templates.
                         </Text>
 
-                        <Text style={{ fontSize: 12, fontWeight: '600', color: '#475569', marginBottom: 4 }}>
-                            Campaign Name *
-                        </Text>
-                        <TextInput
+                        {[
+                            { id: 'welcome_offer', cat: 'MARKETING', title: 'Special Festive Welcome Offer', body: 'Hi {{1}}, enjoy exclusive 20% off with promo code {{2}} on your next order!' },
+                            { id: 'order_status_update', cat: 'UTILITY', title: 'Order Tracking & Shipping Status', body: 'Hello {{1}}, your order #{{2}} has been dispatched and is out for delivery.' },
+                            { id: 'reengage_vip', cat: 'MARKETING', title: 'VIP Customer Re-engagement', body: 'Dear {{1}}, we have reserved your priority consultation session for {{2}}.' },
+                        ].map((tpl) => (
+                            <TouchableOpacity
+                                key={tpl.id}
+                                style={{
+                                    backgroundColor: templateName === tpl.id ? '#ECFDF5' : '#F8FAFC',
+                                    borderWidth: 1.5,
+                                    borderColor: templateName === tpl.id ? Colors.whatsappGreen : '#E2E8F0',
+                                    borderRadius: 10,
+                                    padding: 12,
+                                    marginBottom: 10,
+                                }}
+                                onPress={() => setTemplateName(tpl.id)}>
+                                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                                    <Text style={{ fontSize: 13, fontWeight: '700', color: '#0F172A' }}>{tpl.title}</Text>
+                                    <View style={{ backgroundColor: '#DCFCE7', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 }}>
+                                        <Text style={{ fontSize: 9, fontWeight: '800', color: '#166534' }}>{tpl.cat}</Text>
+                                    </View>
+                                </View>
+                                <Text style={{ fontSize: 11, color: '#475569', lineHeight: 16 }}>{tpl.body}</Text>
+                            </TouchableOpacity>
+                        ))}
+
+                        <TouchableOpacity
                             style={{
-                                height: 42,
-                                borderWidth: 1,
-                                borderColor: '#E2E8F0',
-                                borderRadius: 8,
-                                paddingHorizontal: 12,
-                                marginBottom: 12,
-                                fontSize: 14,
-                                color: '#1E293B',
+                                backgroundColor: Colors.whatsappGreen,
+                                borderRadius: 10,
+                                height: 44,
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                marginTop: 6,
                             }}
-                            placeholder="e.g. Summer Special 2026"
-                            placeholderTextColor="#94A3B8"
+                            onPress={() => setWizardStep(2)}>
+                            <Text style={{ color: '#FFFFFF', fontWeight: '700', fontSize: 14 }}>Next: Select Audience →</Text>
+                        </TouchableOpacity>
+                    </View>
+                )}
+
+                {/* Step 2: Audience Definition */}
+                {wizardStep === 2 && (
+                    <View>
+                        <Text style={{ fontSize: 17, fontWeight: '700', color: '#0F172A', marginBottom: 4 }}>
+                            Step 2: Define Audience Segment
+                        </Text>
+                        <Text style={{ fontSize: 12, color: '#64748B', marginBottom: 14 }}>
+                            Filter by CRM contact tags or broadcast to all active customers.
+                        </Text>
+
+                        {[
+                            { key: 'all', title: 'All CRM Directory Contacts', count: '1,250 recipients' },
+                            { key: 'leads', title: 'New Leads & Inquiries', count: '420 recipients' },
+                            { key: 'customers', title: 'VIP Repeat Customers', count: '140 recipients' },
+                        ].map((seg) => (
+                            <TouchableOpacity
+                                key={seg.key}
+                                style={{
+                                    backgroundColor: selectedSegment === seg.key ? '#ECFDF5' : '#F8FAFC',
+                                    borderWidth: 1.5,
+                                    borderColor: selectedSegment === seg.key ? Colors.whatsappGreen : '#E2E8F0',
+                                    borderRadius: 10,
+                                    padding: 14,
+                                    marginBottom: 10,
+                                    flexDirection: 'row',
+                                    justifyContent: 'space-between',
+                                    alignItems: 'center',
+                                }}
+                                onPress={() => {
+                                    setSelectedSegment(seg.key as any);
+                                    setRecipientsCount(seg.key === 'all' ? '1250' : seg.key === 'leads' ? '420' : '140');
+                                }}>
+                                <View>
+                                    <Text style={{ fontSize: 13, fontWeight: '700', color: '#0F172A' }}>{seg.title}</Text>
+                                    <Text style={{ fontSize: 11, color: '#64748B', marginTop: 2 }}>{seg.count}</Text>
+                                </View>
+                                <View
+                                    style={{
+                                        width: 18,
+                                        height: 18,
+                                        borderRadius: 9,
+                                        borderWidth: 2,
+                                        borderColor: selectedSegment === seg.key ? Colors.whatsappGreen : '#CBD5E1',
+                                        backgroundColor: selectedSegment === seg.key ? Colors.whatsappGreen : 'transparent',
+                                    }}
+                                />
+                            </TouchableOpacity>
+                        ))}
+
+                        <View style={{ backgroundColor: '#F0FDF4', borderRadius: 8, padding: 10, marginBottom: 14, flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                            <IconCheck size={14} color="#166534" />
+                            <Text style={{ fontSize: 11, color: '#166534', fontWeight: '600', flex: 1 }}>
+                                Safe Broadcast: Automatically skips opted-out contacts and numbers without WhatsApp.
+                            </Text>
+                        </View>
+
+                        <View style={{ flexDirection: 'row', gap: 10 }}>
+                            <TouchableOpacity
+                                style={{ flex: 1, height: 44, borderRadius: 10, borderWidth: 1, borderColor: '#CBD5E1', alignItems: 'center', justifyContent: 'center' }}
+                                onPress={() => setWizardStep(1)}>
+                                <Text style={{ color: '#475569', fontWeight: '600', fontSize: 13 }}>← Back</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                                style={{ flex: 1, height: 44, borderRadius: 10, backgroundColor: Colors.whatsappGreen, alignItems: 'center', justifyContent: 'center' }}
+                                onPress={() => setWizardStep(3)}>
+                                <Text style={{ color: '#FFFFFF', fontWeight: '700', fontSize: 13 }}>Next: Personalize →</Text>
+                            </TouchableOpacity>
+                        </View>
+                    </View>
+                )}
+
+                {/* Step 3: Personalization Mapping */}
+                {wizardStep === 3 && (
+                    <View>
+                        <Text style={{ fontSize: 17, fontWeight: '700', color: '#0F172A', marginBottom: 4 }}>
+                            Step 3: Personalization Mapping
+                        </Text>
+                        <Text style={{ fontSize: 12, color: '#64748B', marginBottom: 12 }}>
+                            Define variable placeholders and campaign identifier.
+                        </Text>
+
+                        <Text style={{ fontSize: 11, fontWeight: '700', color: '#475569', marginBottom: 4 }}>Campaign Name *</Text>
+                        <TextInput
+                            style={{ height: 40, borderWidth: 1, borderColor: '#CBD5E1', borderRadius: 8, paddingHorizontal: 10, marginBottom: 10, fontSize: 13, color: '#0F172A', backgroundColor: '#F8FAFC' }}
+                            placeholder="e.g. November Flash Sale 2026"
                             value={campaignName}
                             onChangeText={setCampaignName}
                         />
 
-                        <Text style={{ fontSize: 12, fontWeight: '600', color: '#475569', marginBottom: 4 }}>
-                            Meta Approved Template
-                        </Text>
+                        <Text style={{ fontSize: 11, fontWeight: '700', color: '#475569', marginBottom: 4 }}>Placeholder {'{{1}}'} (Customer Name)</Text>
                         <TextInput
-                            style={{
-                                height: 42,
-                                borderWidth: 1,
-                                borderColor: '#E2E8F0',
-                                borderRadius: 8,
-                                paddingHorizontal: 12,
-                                marginBottom: 12,
-                                fontSize: 14,
-                                color: '#1E293B',
-                            }}
-                            placeholder="e.g. promo_festive_2026"
-                            placeholderTextColor="#94A3B8"
-                            value={templateName}
-                            onChangeText={setTemplateName}
+                            style={{ height: 40, borderWidth: 1, borderColor: '#CBD5E1', borderRadius: 8, paddingHorizontal: 10, marginBottom: 10, fontSize: 13, color: '#0F172A', backgroundColor: '#F8FAFC' }}
+                            value={templateVar1}
+                            onChangeText={setTemplateVar1}
                         />
 
-                        <Text style={{ fontSize: 12, fontWeight: '600', color: '#475569', marginBottom: 4 }}>
-                            Estimated Recipients
-                        </Text>
+                        <Text style={{ fontSize: 11, fontWeight: '700', color: '#475569', marginBottom: 4 }}>Placeholder {'{{2}}'} (Promo Code / Value)</Text>
                         <TextInput
-                            style={{
-                                height: 42,
-                                borderWidth: 1,
-                                borderColor: '#E2E8F0',
-                                borderRadius: 8,
-                                paddingHorizontal: 12,
-                                marginBottom: 20,
-                                fontSize: 14,
-                                color: '#1E293B',
-                            }}
-                            placeholder="e.g. 100"
-                            placeholderTextColor="#94A3B8"
-                            keyboardType="number-pad"
-                            value={recipientsCount}
-                            onChangeText={setRecipientsCount}
+                            style={{ height: 40, borderWidth: 1, borderColor: '#CBD5E1', borderRadius: 8, paddingHorizontal: 10, marginBottom: 14, fontSize: 13, color: '#0F172A', backgroundColor: '#F8FAFC' }}
+                            value={templateVar2}
+                            onChangeText={setTemplateVar2}
                         />
 
-                        <View style={{ flexDirection: 'row', gap: 12 }}>
+                        <View style={{ flexDirection: 'row', gap: 10 }}>
+                            <TouchableOpacity
+                                style={{ flex: 1, height: 44, borderRadius: 10, borderWidth: 1, borderColor: '#CBD5E1', alignItems: 'center', justifyContent: 'center' }}
+                                onPress={() => setWizardStep(2)}>
+                                <Text style={{ color: '#475569', fontWeight: '600', fontSize: 13 }}>← Back</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                                style={{ flex: 1, height: 44, borderRadius: 10, backgroundColor: Colors.whatsappGreen, alignItems: 'center', justifyContent: 'center' }}
+                                onPress={() => {
+                                    if (!campaignName.trim()) {
+                                        Alert.alert('Required', 'Please enter a campaign name');
+                                        return;
+                                    }
+                                    setWizardStep(4);
+                                }}>
+                                <Text style={{ color: '#FFFFFF', fontWeight: '700', fontSize: 13 }}>Next: Review & Schedule →</Text>
+                            </TouchableOpacity>
+                        </View>
+                    </View>
+                )}
+
+                {/* Step 4: Review, Throttling & Launch */}
+                {wizardStep === 4 && (
+                    <View>
+                        <Text style={{ fontSize: 17, fontWeight: '700', color: '#0F172A', marginBottom: 4 }}>
+                            Step 4: Review & Launch Campaign
+                        </Text>
+                        <Text style={{ fontSize: 12, color: '#64748B', marginBottom: 12 }}>
+                            Meta safe throttling is enforced to protect your WhatsApp number quality score.
+                        </Text>
+
+                        {/* Summary Card */}
+                        <View style={{ backgroundColor: '#F8FAFC', borderRadius: 10, borderWidth: 1, borderColor: '#E2E8F0', padding: 12, marginBottom: 12 }}>
+                            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 }}>
+                                <Text style={{ fontSize: 12, color: '#64748B' }}>Campaign:</Text>
+                                <Text style={{ fontSize: 12, fontWeight: '700', color: '#0F172A' }}>{campaignName}</Text>
+                            </View>
+                            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 }}>
+                                <Text style={{ fontSize: 12, color: '#64748B' }}>Template:</Text>
+                                <Text style={{ fontSize: 12, fontWeight: '700', color: '#0F172A' }}>{templateName}</Text>
+                            </View>
+                            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 }}>
+                                <Text style={{ fontSize: 12, color: '#64748B' }}>Recipients:</Text>
+                                <Text style={{ fontSize: 12, fontWeight: '700', color: '#166534' }}>{recipientsCount} contacts</Text>
+                            </View>
+                            <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                                <Text style={{ fontSize: 12, color: '#64748B' }}>Safe Throttling Rate:</Text>
+                                <Text style={{ fontSize: 12, fontWeight: '700', color: '#0284C7' }}>20 messages / second</Text>
+                            </View>
+                        </View>
+
+                        {/* Schedule Timing Choice */}
+                        <Text style={{ fontSize: 11, fontWeight: '700', color: '#475569', marginBottom: 6 }}>Dispatch Timing</Text>
+                        <View style={{ flexDirection: 'row', gap: 10, marginBottom: 14 }}>
                             <TouchableOpacity
                                 style={{
                                     flex: 1,
-                                    height: 44,
-                                    borderRadius: 10,
+                                    paddingVertical: 10,
+                                    borderRadius: 8,
                                     borderWidth: 1,
-                                    borderColor: '#E2E8F0',
+                                    borderColor: scheduleMode === 'now' ? Colors.whatsappGreen : '#CBD5E1',
+                                    backgroundColor: scheduleMode === 'now' ? '#ECFDF5' : '#FFFFFF',
                                     alignItems: 'center',
-                                    justifyContent: 'center',
                                 }}
-                                onPress={() => setCreateModalVisible(false)}>
-                                <Text style={{ color: '#64748B', fontWeight: '600', fontSize: 14 }}>Cancel</Text>
+                                onPress={() => setScheduleMode('now')}>
+                                <Text style={{ fontSize: 12, fontWeight: '700', color: scheduleMode === 'now' ? '#166534' : '#475569' }}>
+                                    Send Immediately
+                                </Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                                style={{
+                                    flex: 1,
+                                    paddingVertical: 10,
+                                    borderRadius: 8,
+                                    borderWidth: 1,
+                                    borderColor: scheduleMode === 'scheduled' ? Colors.whatsappGreen : '#CBD5E1',
+                                    backgroundColor: scheduleMode === 'scheduled' ? '#ECFDF5' : '#FFFFFF',
+                                    alignItems: 'center',
+                                }}
+                                onPress={() => setScheduleMode('scheduled')}>
+                                <Text style={{ fontSize: 12, fontWeight: '700', color: scheduleMode === 'scheduled' ? '#166534' : '#475569' }}>
+                                    Schedule for Later
+                                </Text>
+                            </TouchableOpacity>
+                        </View>
+
+                        <View style={{ flexDirection: 'row', gap: 10 }}>
+                            <TouchableOpacity
+                                style={{ flex: 1, height: 44, borderRadius: 10, borderWidth: 1, borderColor: '#CBD5E1', alignItems: 'center', justifyContent: 'center' }}
+                                onPress={() => setWizardStep(3)}>
+                                <Text style={{ color: '#475569', fontWeight: '600', fontSize: 13 }}>← Back</Text>
                             </TouchableOpacity>
 
                             <TouchableOpacity
-                                style={{
-                                    flex: 1,
-                                    height: 44,
-                                    borderRadius: 10,
-                                    backgroundColor: Colors.primaryGreen,
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                }}
+                                style={{ flex: 1.4, height: 44, borderRadius: 10, backgroundColor: Colors.whatsappGreen, alignItems: 'center', justifyContent: 'center' }}
                                 disabled={isCreating}
                                 onPress={handleCreateBroadcast}>
                                 {isCreating ? (
                                     <ActivityIndicator color="#FFFFFF" size="small" />
                                 ) : (
-                                    <Text style={{ color: '#FFFFFF', fontWeight: '700', fontSize: 14 }}>
-                                        Launch Broadcast
+                                    <Text style={{ color: '#FFFFFF', fontWeight: '700', fontSize: 13 }}>
+                                        Launch Official Broadcast
                                     </Text>
                                 )}
                             </TouchableOpacity>
                         </View>
                     </View>
-                </View>
-            </Modal>
+                )}
+            </SmoothModal>
         </SafeAreaView>
     );
 };

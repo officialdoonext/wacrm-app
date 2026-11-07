@@ -1,5 +1,5 @@
 import React from 'react';
-import Svg, { Path, Rect, Circle, G } from 'react-native-svg';
+import Svg, { Path, Rect, Circle } from 'react-native-svg';
 
 // Mail Icon
 export const MailIcon = ({ size = 20, color = '#9CA3AF' }: { size?: number; color?: string }) => (

@@ -28,7 +28,7 @@ export interface DynamicMessage {
   id: string;
   conversation_id: string;
   sender_type: 'customer' | 'agent' | 'bot';
-  content_type: 'text' | 'image' | 'video' | 'audio' | 'document' | 'template' | 'interactive';
+  content_type: 'text' | 'image' | 'video' | 'audio' | 'document' | 'template' | 'interactive' | 'order' | 'location';
   content_text?: string;
   media_url?: string;
   status: 'sending' | 'sent' | 'delivered' | 'read' | 'failed';
@@ -238,7 +238,7 @@ class CRMService {
     conversationId: string;
     contactId?: string;
     text: string;
-    messageType?: 'text' | 'image' | 'video' | 'audio' | 'document' | 'template';
+    messageType?: 'text' | 'image' | 'video' | 'audio' | 'document' | 'template' | 'interactive' | 'order' | 'location';
     mediaUrl?: string;
     replyToMessageId?: string;
   }): Promise<DynamicMessage> {

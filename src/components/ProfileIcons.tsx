@@ -1,5 +1,5 @@
 import React from 'react';
-import Svg, { Path, Circle, Rect, Line } from 'react-native-svg';
+import Svg, { Path, Circle, Line } from 'react-native-svg';
 
 // Edit Pencil Icon
 export const EditPencilIcon = ({ size = 13, color = '#10B981' }: { size?: number; color?: string }) => (
