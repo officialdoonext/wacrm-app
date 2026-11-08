@@ -10,6 +10,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Colors } from '../../theme/colors';
 import { AppHeader } from '../../components/AppHeader';
+import { AppBottomBar, BottomNavTab } from '../../components/AppBottomBar';
 import {
     IconUser,
     IconMegaphone,
@@ -62,7 +63,19 @@ const INITIAL_NOTIFICATIONS: NotificationItem[] = [
     },
 ];
 
-export const NotificationsScreen: React.FC<{ onBack?: () => void }> = ({ onBack }) => {
+interface NotificationsScreenProps {
+    onBack?: () => void;
+    onNavigateTab?: (tab: BottomNavTab) => void;
+    onOpenDashboard?: () => void;
+    onOpenProfile?: () => void;
+}
+
+export const NotificationsScreen: React.FC<NotificationsScreenProps> = ({
+    onBack,
+    onNavigateTab,
+    onOpenDashboard,
+    onOpenProfile,
+}) => {
     const [notifications, setNotifications] = useState<NotificationItem[]>(INITIAL_NOTIFICATIONS);
 
     const markAllRead = () => {
@@ -73,11 +86,15 @@ export const NotificationsScreen: React.FC<{ onBack?: () => void }> = ({ onBack 
         <SafeAreaView style={styles.safeArea} edges={['top', 'bottom', 'left', 'right']}>
             <StatusBar barStyle="dark-content" />
             <View style={styles.container}>
-                {/* Standard Unified Header: Logo on Left, Profile on Right */}
+                {/* Standard Unified Header: Logo on Left, Profile & Actions on Right */}
                 <AppHeader
                     title="Notifications Feed"
                     subtitle="Workspace alerts & system activity"
                     onBack={onBack}
+                    onPressDashboard={onOpenDashboard}
+                    onPressNotifications={() => {}}
+                    onPressProfile={onOpenProfile || (() => onNavigateTab && onNavigateTab('More'))}
+                    unreadCount={0}
                     rightElement={
                         <TouchableOpacity onPress={markAllRead} style={{ paddingHorizontal: 10, paddingVertical: 6, backgroundColor: '#F1F5F9', borderRadius: 8 }}>
                             <Text style={styles.markReadText}>Mark all read</Text>
@@ -111,6 +128,12 @@ export const NotificationsScreen: React.FC<{ onBack?: () => void }> = ({ onBack 
                             </View>
                         </View>
                     )}
+                />
+
+                {/* Unified 5-Tab Bottom Bar: Inbox, Automation, AI Agent, Broadcast, More */}
+                <AppBottomBar
+                    activeTab="More"
+                    onNavigateTab={onNavigateTab}
                 />
             </View>
         </SafeAreaView>

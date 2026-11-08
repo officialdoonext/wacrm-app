@@ -18,6 +18,7 @@ import { Colors } from '../../theme/colors';
 import { PaperPlaneIcon } from '../../components/PaperPlaneIcon';
 import { BrandLogo } from '../../components/BrandLogo';
 import { AppHeader } from '../../components/AppHeader';
+import { AppBottomBar, BottomNavTab } from '../../components/AppBottomBar';
 import { SmoothModal } from '../../components/SmoothModal';
 import {
     SearchIcon,
@@ -25,12 +26,7 @@ import {
     BellIcon,
     ChevronRightIcon,
     WhatsAppMiniBadge,
-    TabInboxIcon,
-    TabAutomationIcon,
-    TabContactsIcon,
-    TabMoreIcon,
 } from '../../components/DashboardIcons';
-import { MegaphoneIcon } from '../../components/BroadcastIcons';
 import { MessageSquareVectorIcon, UsersVectorIcon } from '../../components/ChatIcons';
 import { crmService, DynamicConversation } from '../../services/crmService';
 import { authService, UserProfile } from '../../services/supabase';
@@ -90,7 +86,7 @@ export interface ChatItem {
 
 interface InboxScreenProps {
     onSelectChat?: (chat: ChatItem) => void;
-    onNavigateTab?: (tab: 'Inbox' | 'Automation' | 'Contacts' | 'Broadcast' | 'More') => void;
+    onNavigateTab?: (tab: BottomNavTab) => void;
     onOpenDashboard?: () => void;
     onOpenNotifications?: () => void;
 }
@@ -547,49 +543,12 @@ export const InboxScreen: React.FC<InboxScreenProps> = ({
                     <Text style={styles.fabPlus}>+</Text>
                 </TouchableOpacity>
 
-                {/* Bottom Tab Bar */}
-                <View style={styles.bottomTabBar}>
-                    <TouchableOpacity
-                        style={styles.tabItem}
-                        activeOpacity={0.7}
-                        onPress={() => onNavigateTab && onNavigateTab('Inbox')}>
-                        <TabInboxIcon size={22} color={Colors.primaryGreen} />
-                        <View style={styles.tabIndicatorDot} />
-                        <Text style={[styles.tabLabel, styles.tabLabelActive]}>Inbox</Text>
-                    </TouchableOpacity>
-
-                    <TouchableOpacity
-                        style={styles.tabItem}
-                        activeOpacity={0.7}
-                        onPress={() => onNavigateTab && onNavigateTab('Automation')}>
-                        <TabAutomationIcon size={22} color="#94A3B8" />
-                        <Text style={styles.tabLabel}>Automation</Text>
-                    </TouchableOpacity>
-
-                    <TouchableOpacity
-                        style={styles.tabItem}
-                        activeOpacity={0.7}
-                        onPress={() => onNavigateTab && onNavigateTab('Contacts')}>
-                        <TabContactsIcon size={22} color="#94A3B8" />
-                        <Text style={styles.tabLabel}>Contacts</Text>
-                    </TouchableOpacity>
-
-                    <TouchableOpacity
-                        style={styles.tabItem}
-                        activeOpacity={0.7}
-                        onPress={() => onNavigateTab && onNavigateTab('Broadcast')}>
-                        <MegaphoneIcon size={22} color="#94A3B8" />
-                        <Text style={styles.tabLabel}>Broadcast</Text>
-                    </TouchableOpacity>
-
-                    <TouchableOpacity
-                        style={styles.tabItem}
-                        activeOpacity={0.7}
-                        onPress={() => onNavigateTab && onNavigateTab('More')}>
-                        <TabMoreIcon size={22} color="#94A3B8" />
-                        <Text style={styles.tabLabel}>More</Text>
-                    </TouchableOpacity>
-                </View>
+                {/* Unified 5-Tab Bottom Bar: Inbox, Automation, AI Agent, Broadcast, More */}
+                <AppBottomBar
+                    activeTab="Inbox"
+                    onNavigateTab={onNavigateTab}
+                    unreadCount={unreadCountTotal}
+                />
             </View>
 
             {/* Smooth Modal: Start New Chat */}

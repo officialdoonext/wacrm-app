@@ -16,6 +16,7 @@ import { styles } from './styles';
 import { Colors } from '../../theme/colors';
 import { BrandLogo } from '../../components/BrandLogo';
 import { AppHeader } from '../../components/AppHeader';
+import { AppBottomBar, BottomNavTab } from '../../components/AppBottomBar';
 import { SmoothModal } from '../../components/SmoothModal';
 import {
     IconChart,
@@ -64,13 +65,15 @@ import { API_CONFIG } from '../../config/api';
 
 interface MoreScreenProps {
     onBack?: () => void;
-    onNavigateTab?: (tab: 'Inbox' | 'Automation' | 'Contacts' | 'Broadcast' | 'More') => void;
+    onNavigateTab?: (tab: BottomNavTab) => void;
     onLogout?: () => void;
     onOpenPipelines?: () => void;
     onOpenCommerce?: () => void;
     onOpenFlows?: () => void;
     onOpenAgents?: () => void;
     onOpenDashboard?: () => void;
+    onOpenNotifications?: () => void;
+    onOpenContacts?: () => void;
 }
 
 export const MoreScreen: React.FC<MoreScreenProps> = ({
@@ -82,6 +85,8 @@ export const MoreScreen: React.FC<MoreScreenProps> = ({
     onOpenFlows,
     onOpenAgents,
     onOpenDashboard,
+    onOpenNotifications,
+    onOpenContacts,
 }) => {
     const [profile, setProfile] = useState<UserProfile | null>(null);
     const [metrics, setMetrics] = useState<DashboardMetrics>({
@@ -213,9 +218,11 @@ export const MoreScreen: React.FC<MoreScreenProps> = ({
         <SafeAreaView style={styles.safeArea} edges={['top', 'bottom', 'left', 'right']}>
             <StatusBar barStyle="dark-content" />
             <View style={styles.container}>
-                {/* Standard Unified Top Header: Logo on Left, Profile on Right */}
+                {/* Standard Unified Top Header: Logo on Left, Profile and Actions on Right */}
                 <AppHeader
                     onBack={onBack}
+                    onPressDashboard={onOpenDashboard}
+                    onPressNotifications={onOpenNotifications}
                     onPressProfile={() => {}}
                 />
 
@@ -365,6 +372,23 @@ export const MoreScreen: React.FC<MoreScreenProps> = ({
 
                         {/* Menu Group 1: Core CRM Engines */}
                         <View style={styles.menuSectionBox}>
+                            {/* Contacts & Customer Database */}
+                            <TouchableOpacity
+                                style={styles.menuItem}
+                                activeOpacity={0.7}
+                                onPress={onOpenContacts}>
+                                <View style={[styles.menuIconBox, { backgroundColor: '#DCFCE7' }]}>
+                                    <UsersVectorIcon size={18} color="#059669" />
+                                </View>
+                                <View style={styles.menuTextCol}>
+                                    <Text style={styles.menuTitle}>Contacts & Customer Database</Text>
+                                    <Text style={styles.menuSubtitle}>
+                                        Manage customer list, phone numbers, tags & history
+                                    </Text>
+                                </View>
+                                <ChevronRightIcon size={14} color="#94A3B8" />
+                            </TouchableOpacity>
+
                             {/* Executive Dashboard */}
                             <TouchableOpacity
                                 style={styles.menuItem}
@@ -580,49 +604,11 @@ export const MoreScreen: React.FC<MoreScreenProps> = ({
                     </ScrollView>
                 </View>
 
-                {/* Bottom Navigation Tab Bar */}
-                <View style={styles.bottomTabBar}>
-                    <TouchableOpacity
-                        style={styles.tabItem}
-                        activeOpacity={0.7}
-                        onPress={() => onNavigateTab && onNavigateTab('Inbox')}>
-                        <TabInboxIcon size={22} color="#94A3B8" />
-                        <View style={styles.tabIndicatorDot} />
-                        <Text style={styles.tabLabel}>Inbox</Text>
-                    </TouchableOpacity>
-
-                    <TouchableOpacity
-                        style={styles.tabItem}
-                        activeOpacity={0.7}
-                        onPress={() => onNavigateTab && onNavigateTab('Automation')}>
-                        <TabAutomationIcon size={22} color="#94A3B8" />
-                        <Text style={styles.tabLabel}>Automation</Text>
-                    </TouchableOpacity>
-
-                    <TouchableOpacity
-                        style={styles.tabItem}
-                        activeOpacity={0.7}
-                        onPress={() => onNavigateTab && onNavigateTab('Contacts')}>
-                        <TabContactsIcon size={22} color="#94A3B8" />
-                        <Text style={styles.tabLabel}>Contacts</Text>
-                    </TouchableOpacity>
-
-                    <TouchableOpacity
-                        style={styles.tabItem}
-                        activeOpacity={0.7}
-                        onPress={() => onNavigateTab && onNavigateTab('Broadcast')}>
-                        <MegaphoneIcon size={22} color="#94A3B8" />
-                        <Text style={styles.tabLabel}>Broadcast</Text>
-                    </TouchableOpacity>
-
-                    <TouchableOpacity
-                        style={styles.tabItem}
-                        activeOpacity={0.7}
-                        onPress={() => onNavigateTab && onNavigateTab('More')}>
-                        <TabMoreIcon size={22} color={Colors.whatsappGreen} />
-                        <Text style={[styles.tabLabel, styles.tabLabelActive]}>More</Text>
-                    </TouchableOpacity>
-                </View>
+                {/* Unified 5-Tab Bottom Bar: Inbox, Automation, AI Agent, Broadcast, More */}
+                <AppBottomBar
+                    activeTab="More"
+                    onNavigateTab={onNavigateTab}
+                />
             </View>
 
             {/* Smooth Modal: WhatsApp Cloud API Credentials */}

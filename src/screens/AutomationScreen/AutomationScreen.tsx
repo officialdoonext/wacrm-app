@@ -18,16 +18,12 @@ import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view
 import { styles } from './styles';
 import { Colors } from '../../theme/colors';
 import { AppHeader } from '../../components/AppHeader';
+import { AppBottomBar, BottomNavTab } from '../../components/AppBottomBar';
 import { SmoothModal } from '../../components/SmoothModal';
 import { ArrowRightIcon } from '../../components/WelcomeIcons';
 import {
-    TabInboxIcon,
-    TabAutomationIcon,
-    TabContactsIcon,
-    TabMoreIcon,
     WhatsAppMiniBadge,
 } from '../../components/DashboardIcons';
-import { MegaphoneIcon } from '../../components/BroadcastIcons';
 import { MoreDotsIcon } from '../../components/ChatIcons';
 import {
     IconZap,
@@ -268,10 +264,16 @@ const STEP_DEFS: Record<AutomationStepType, { label: string; desc: string; color
 };
 
 interface AutomationScreenProps {
-    onNavigateTab?: (tab: 'Inbox' | 'Automation' | 'Contacts' | 'Broadcast' | 'More') => void;
+    onNavigateTab?: (tab: BottomNavTab) => void;
+    onOpenDashboard?: () => void;
+    onOpenNotifications?: () => void;
 }
 
-export const AutomationScreen: React.FC<AutomationScreenProps> = ({ onNavigateTab }) => {
+export const AutomationScreen: React.FC<AutomationScreenProps> = ({
+    onNavigateTab,
+    onOpenDashboard,
+    onOpenNotifications,
+}) => {
     const [activeCategory, setActiveCategory] = useState<string>('All Automations');
     const [rules, setRules] = useState<DynamicAutomation[]>([]);
     const [isLoading, setIsLoading] = useState(false);
@@ -624,10 +626,11 @@ export const AutomationScreen: React.FC<AutomationScreenProps> = ({ onNavigateTa
         <SafeAreaView style={styles.safeArea} edges={['top', 'bottom', 'left', 'right']}>
             <StatusBar barStyle="dark-content" />
             <View style={styles.container}>
-                {/* Standard Unified Header: Logo on Left, Profile on Right */}
+                {/* Standard Unified Header: Logo on Left, Profile and Actions on Right */}
                 <AppHeader
+                    onPressDashboard={onOpenDashboard}
+                    onPressNotifications={onOpenNotifications}
                     onPressProfile={() => onNavigateTab && onNavigateTab('More')}
-                    onPressSearch={() => {}}
                     unreadCount={0}
                 />
 
@@ -908,49 +911,11 @@ export const AutomationScreen: React.FC<AutomationScreenProps> = ({ onNavigateTa
                     <IconPlus size={24} color="#FFFFFF" />
                 </TouchableOpacity>
 
-                {/* Bottom Navigation Tab Bar */}
-                <View style={styles.bottomTabBar}>
-                    <TouchableOpacity
-                        style={styles.tabItem}
-                        onPress={() => onNavigateTab && onNavigateTab('Inbox')}
-                        activeOpacity={0.7}>
-                        <TabInboxIcon size={22} color="#94A3B8" />
-                        <View style={styles.tabIndicatorDot} />
-                        <Text style={styles.tabLabel}>Inbox</Text>
-                    </TouchableOpacity>
-
-                    <TouchableOpacity
-                        style={styles.tabItem}
-                        onPress={() => onNavigateTab && onNavigateTab('Automation')}
-                        activeOpacity={0.7}>
-                        <TabAutomationIcon size={22} color={Colors.primaryGreen} />
-                        <Text style={[styles.tabLabel, styles.tabLabelActive]}>Automation</Text>
-                    </TouchableOpacity>
-
-                    <TouchableOpacity
-                        style={styles.tabItem}
-                        onPress={() => onNavigateTab && onNavigateTab('Contacts')}
-                        activeOpacity={0.7}>
-                        <TabContactsIcon size={22} color="#94A3B8" />
-                        <Text style={styles.tabLabel}>Contacts</Text>
-                    </TouchableOpacity>
-
-                    <TouchableOpacity
-                        style={styles.tabItem}
-                        onPress={() => onNavigateTab && onNavigateTab('Broadcast')}
-                        activeOpacity={0.7}>
-                        <MegaphoneIcon size={22} color="#94A3B8" />
-                        <Text style={styles.tabLabel}>Broadcast</Text>
-                    </TouchableOpacity>
-
-                    <TouchableOpacity
-                        style={styles.tabItem}
-                        onPress={() => onNavigateTab && onNavigateTab('More')}
-                        activeOpacity={0.7}>
-                        <TabMoreIcon size={22} color="#94A3B8" />
-                        <Text style={styles.tabLabel}>More</Text>
-                    </TouchableOpacity>
-                </View>
+                {/* Unified 5-Tab Bottom Bar: Inbox, Automation, AI Agent, Broadcast, More */}
+                <AppBottomBar
+                    activeTab="Automation"
+                    onNavigateTab={onNavigateTab}
+                />
             </View>
 
             {/* Smooth Modal: Automation Options Sheet */}

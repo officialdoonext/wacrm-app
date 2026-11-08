@@ -19,14 +19,11 @@ import Svg, { Path } from 'react-native-svg';
 import { styles } from './styles';
 import { Colors } from '../../theme/colors';
 import { AppHeader } from '../../components/AppHeader';
+import { AppBottomBar, BottomNavTab } from '../../components/AppBottomBar';
 import { SmoothModal } from '../../components/SmoothModal';
 import { ArrowRightIcon } from '../../components/WelcomeIcons';
 import {
     SearchIcon,
-    TabInboxIcon,
-    TabAutomationIcon,
-    TabContactsIcon,
-    TabMoreIcon,
 } from '../../components/DashboardIcons';
 import {
     IconCheck,
@@ -55,10 +52,16 @@ import {
 import { authService, UserProfile } from '../../services/supabase';
 
 interface BroadcastScreenProps {
-    onNavigateTab?: (tab: 'Inbox' | 'Automation' | 'Contacts' | 'Broadcast' | 'More') => void;
+    onNavigateTab?: (tab: BottomNavTab) => void;
+    onOpenDashboard?: () => void;
+    onOpenNotifications?: () => void;
 }
 
-export const BroadcastScreen: React.FC<BroadcastScreenProps> = ({ onNavigateTab }) => {
+export const BroadcastScreen: React.FC<BroadcastScreenProps> = ({
+    onNavigateTab,
+    onOpenDashboard,
+    onOpenNotifications,
+}) => {
     const [broadcasts, setBroadcasts] = useState<DynamicBroadcast[]>([]);
     const [activeChip, setActiveChip] = useState<string>('All Campaigns');
     const [isLoading, setIsLoading] = useState(false);
@@ -303,10 +306,11 @@ export const BroadcastScreen: React.FC<BroadcastScreenProps> = ({ onNavigateTab 
         <SafeAreaView style={styles.safeArea} edges={['top', 'bottom', 'left', 'right']}>
             <StatusBar barStyle="dark-content" />
             <View style={styles.container}>
-                {/* Standard Unified Header: Logo on Left, Profile on Right */}
+                {/* Standard Unified Header: Logo on Left, Profile and Actions on Right */}
                 <AppHeader
+                    onPressDashboard={onOpenDashboard}
+                    onPressNotifications={onOpenNotifications}
                     onPressProfile={() => onNavigateTab && onNavigateTab('More')}
-                    onPressSearch={() => {}}
                     unreadCount={0}
                 />
 
@@ -518,48 +522,11 @@ export const BroadcastScreen: React.FC<BroadcastScreenProps> = ({ onNavigateTab 
                     )}
                 </View>
 
-                {/* Bottom Navigation Bar */}
-                <View style={styles.bottomTabBar}>
-                    <TouchableOpacity
-                        style={styles.tabItem}
-                        activeOpacity={0.7}
-                        onPress={() => onNavigateTab && onNavigateTab('Inbox')}>
-                        <TabInboxIcon size={22} color="#94A3B8" />
-                        <Text style={styles.tabLabel}>Inbox</Text>
-                    </TouchableOpacity>
-
-                    <TouchableOpacity
-                        style={styles.tabItem}
-                        activeOpacity={0.7}
-                        onPress={() => onNavigateTab && onNavigateTab('Automation')}>
-                        <TabAutomationIcon size={22} color="#94A3B8" />
-                        <Text style={styles.tabLabel}>Automations</Text>
-                    </TouchableOpacity>
-
-                    <TouchableOpacity
-                        style={styles.tabItem}
-                        activeOpacity={0.7}
-                        onPress={() => onNavigateTab && onNavigateTab('Contacts')}>
-                        <TabContactsIcon size={22} color="#94A3B8" />
-                        <Text style={styles.tabLabel}>Contacts</Text>
-                    </TouchableOpacity>
-
-                    <TouchableOpacity
-                        style={styles.tabItem}
-                        activeOpacity={0.7}
-                        onPress={() => onNavigateTab && onNavigateTab('Broadcast')}>
-                        <MegaphoneIcon size={22} color={Colors.primaryGreen} />
-                        <Text style={[styles.tabLabel, styles.tabLabelActive]}>Broadcast</Text>
-                    </TouchableOpacity>
-
-                    <TouchableOpacity
-                        style={styles.tabItem}
-                        activeOpacity={0.7}
-                        onPress={() => onNavigateTab && onNavigateTab('More')}>
-                        <TabMoreIcon size={22} color="#94A3B8" />
-                        <Text style={styles.tabLabel}>More</Text>
-                    </TouchableOpacity>
-                </View>
+                {/* Unified 5-Tab Bottom Bar: Inbox, Automation, AI Agent, Broadcast, More */}
+                <AppBottomBar
+                    activeTab="Broadcast"
+                    onNavigateTab={onNavigateTab}
+                />
             </View>
 
             {/* ============================================================= */}

@@ -15,6 +15,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Colors } from '../../theme/colors';
 import { BrandLogo } from '../../components/BrandLogo';
 import { AppHeader } from '../../components/AppHeader';
+import { AppBottomBar, BottomNavTab } from '../../components/AppBottomBar';
 import { SmoothModal } from '../../components/SmoothModal';
 import {
     IconUser,
@@ -66,11 +67,19 @@ const INITIAL_DEALS: DealItem[] = [
 interface PipelinesScreenProps {
     onBack?: () => void;
     onOpenChat?: (contactName: string, phone?: string) => void;
+    onNavigateTab?: (tab: BottomNavTab) => void;
+    onOpenDashboard?: () => void;
+    onOpenNotifications?: () => void;
+    onOpenProfile?: () => void;
 }
 
 export const PipelinesScreen: React.FC<PipelinesScreenProps> = ({
     onBack,
     onOpenChat,
+    onNavigateTab,
+    onOpenDashboard,
+    onOpenNotifications,
+    onOpenProfile,
 }) => {
     const [deals, setDeals] = useState<DealItem[]>(INITIAL_DEALS);
     const [selectedDeal, setSelectedDeal] = useState<DealItem | null>(null);
@@ -191,6 +200,10 @@ export const PipelinesScreen: React.FC<PipelinesScreenProps> = ({
                     title="Sales Pipeline"
                     subtitle={`$${totalPipelineValue.toLocaleString()} • ${deals.length} deals`}
                     onBack={onBack}
+                    onPressDashboard={onOpenDashboard}
+                    onPressNotifications={onOpenNotifications}
+                    onPressProfile={onOpenProfile || (() => onNavigateTab && onNavigateTab('More'))}
+                    unreadCount={0}
                     rightElement={
                         <TouchableOpacity
                             style={styles.addBtn}
@@ -279,6 +292,12 @@ export const PipelinesScreen: React.FC<PipelinesScreenProps> = ({
                         );
                     })}
                 </ScrollView>
+
+                {/* Unified 5-Tab Bottom Bar: Inbox, Automation, AI Agent, Broadcast, More */}
+                <AppBottomBar
+                    activeTab="More"
+                    onNavigateTab={onNavigateTab}
+                />
             </View>
 
             {/* Smooth Modal: Move Stage Action */}

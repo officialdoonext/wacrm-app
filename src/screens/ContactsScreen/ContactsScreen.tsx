@@ -19,6 +19,7 @@ import { Colors } from '../../theme/colors';
 import { PaperPlaneIcon } from '../../components/PaperPlaneIcon';
 import { BrandLogo } from '../../components/BrandLogo';
 import { AppHeader } from '../../components/AppHeader';
+import { AppBottomBar, BottomNavTab } from '../../components/AppBottomBar';
 import { SmoothModal } from '../../components/SmoothModal';
 import {
     IconDownload,
@@ -70,13 +71,19 @@ export interface ContactItem {
 }
 
 interface ContactsScreenProps {
-    onNavigateTab?: (tab: 'Inbox' | 'Automation' | 'Contacts' | 'Broadcast' | 'More') => void;
+    onBack?: () => void;
+    onNavigateTab?: (tab: BottomNavTab) => void;
     onSelectContact?: (contact: ContactItem) => void;
+    onOpenDashboard?: () => void;
+    onOpenNotifications?: () => void;
 }
 
 export const ContactsScreen: React.FC<ContactsScreenProps> = ({
+    onBack,
     onNavigateTab,
     onSelectContact,
+    onOpenDashboard,
+    onOpenNotifications,
 }) => {
     const [contacts, setContacts] = useState<DynamicContact[]>([]);
     const [activeChip, setActiveChip] = useState<string>('All');
@@ -391,10 +398,12 @@ export const ContactsScreen: React.FC<ContactsScreenProps> = ({
         <SafeAreaView style={styles.safeArea} edges={['top', 'bottom', 'left', 'right']}>
             <StatusBar barStyle="dark-content" />
             <View style={styles.container}>
-                {/* Standard Unified Header: Logo on Left, Profile on Right */}
+                {/* Standard Unified Header: Logo on Left, Profile and Actions on Right */}
                 <AppHeader
+                    onBack={onBack}
+                    onPressDashboard={onOpenDashboard}
+                    onPressNotifications={onOpenNotifications}
                     onPressProfile={() => onNavigateTab && onNavigateTab('More')}
-                    onPressSearch={() => {}}
                     unreadCount={0}
                 />
 
@@ -785,49 +794,11 @@ export const ContactsScreen: React.FC<ContactsScreenProps> = ({
                     <Text style={styles.fabPlusIcon}>+</Text>
                 </TouchableOpacity>
 
-                {/* Bottom Navigation Tab Bar */}
-                <View style={styles.bottomTabBar}>
-                    <TouchableOpacity
-                        style={styles.tabItem}
-                        activeOpacity={0.7}
-                        onPress={() => onNavigateTab && onNavigateTab('Inbox')}>
-                        <TabInboxIcon size={22} color="#94A3B8" />
-                        <View style={styles.tabIndicatorDot} />
-                        <Text style={styles.tabLabel}>Inbox</Text>
-                    </TouchableOpacity>
-
-                    <TouchableOpacity
-                        style={styles.tabItem}
-                        activeOpacity={0.7}
-                        onPress={() => onNavigateTab && onNavigateTab('Automation')}>
-                        <TabAutomationIcon size={22} color="#94A3B8" />
-                        <Text style={styles.tabLabel}>Automation</Text>
-                    </TouchableOpacity>
-
-                    <TouchableOpacity
-                        style={styles.tabItem}
-                        activeOpacity={0.7}
-                        onPress={() => onNavigateTab && onNavigateTab('Contacts')}>
-                        <TabContactsIcon size={22} color={Colors.primaryGreen} />
-                        <Text style={[styles.tabLabel, styles.tabLabelActive]}>Contacts</Text>
-                    </TouchableOpacity>
-
-                    <TouchableOpacity
-                        style={styles.tabItem}
-                        activeOpacity={0.7}
-                        onPress={() => onNavigateTab && onNavigateTab('Broadcast')}>
-                        <MegaphoneIcon size={22} color="#94A3B8" />
-                        <Text style={styles.tabLabel}>Broadcast</Text>
-                    </TouchableOpacity>
-
-                    <TouchableOpacity
-                        style={styles.tabItem}
-                        activeOpacity={0.7}
-                        onPress={() => onNavigateTab && onNavigateTab('More')}>
-                        <TabMoreIcon size={22} color="#94A3B8" />
-                        <Text style={styles.tabLabel}>More</Text>
-                    </TouchableOpacity>
-                </View>
+                {/* Unified 5-Tab Bottom Bar: Inbox, Automation, AI Agent, Broadcast, More */}
+                <AppBottomBar
+                    activeTab="More"
+                    onNavigateTab={onNavigateTab}
+                />
             </View>
 
             {/* Smooth Modal: Add New Contact */}

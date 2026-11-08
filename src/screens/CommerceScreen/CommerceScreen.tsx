@@ -15,6 +15,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Colors } from '../../theme/colors';
 import { AppHeader } from '../../components/AppHeader';
+import { AppBottomBar, BottomNavTab } from '../../components/AppBottomBar';
 import { SmoothModal } from '../../components/SmoothModal';
 import {
     IconUser,
@@ -105,11 +106,19 @@ const MOCK_PRODUCTS: CatalogProduct[] = [
 interface CommerceScreenProps {
     onBack?: () => void;
     onSendProductInChat?: (product: CatalogProduct) => void;
+    onNavigateTab?: (tab: BottomNavTab) => void;
+    onOpenDashboard?: () => void;
+    onOpenNotifications?: () => void;
+    onOpenProfile?: () => void;
 }
 
 export const CommerceScreen: React.FC<CommerceScreenProps> = ({
     onBack,
     onSendProductInChat,
+    onNavigateTab,
+    onOpenDashboard,
+    onOpenNotifications,
+    onOpenProfile,
 }) => {
     const [currentTab, setCurrentTab] = useState<'orders' | 'catalog'>('orders');
     const [orders, setOrders] = useState<CommerceOrder[]>(MOCK_ORDERS);
@@ -181,11 +190,15 @@ export const CommerceScreen: React.FC<CommerceScreenProps> = ({
         <SafeAreaView style={styles.safeArea} edges={['top', 'bottom', 'left', 'right']}>
             <StatusBar barStyle="dark-content" />
             <View style={styles.container}>
-                {/* Standard Unified Header: Logo on Left, Profile on Right */}
+                {/* Standard Unified Header: Logo on Left, Profile & Actions on Right */}
                 <AppHeader
                     title="WhatsApp Commerce"
                     subtitle="Meta catalog & in-chat orders"
                     onBack={onBack}
+                    onPressDashboard={onOpenDashboard}
+                    onPressNotifications={onOpenNotifications}
+                    onPressProfile={onOpenProfile || (() => onNavigateTab && onNavigateTab('More'))}
+                    unreadCount={0}
                 />
 
                 {/* KPI Overview Tiles */}
@@ -357,6 +370,12 @@ export const CommerceScreen: React.FC<CommerceScreenProps> = ({
                         />
                     </View>
                 )}
+
+                {/* Unified 5-Tab Bottom Bar: Inbox, Automation, AI Agent, Broadcast, More */}
+                <AppBottomBar
+                    activeTab="More"
+                    onNavigateTab={onNavigateTab}
+                />
             </View>
 
             {/* Smooth Modal: Order Details & Payment Modal */}

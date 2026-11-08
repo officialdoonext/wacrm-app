@@ -68,55 +68,53 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
                 )}
             </View>
 
-            {/* Right Side: Optional Actions + Profile Avatar */}
+            {/* Right Side: Actions + Profile Avatar (Identical across all screens) */}
             <View style={styles.rightContainer}>
-                {rightElement ? (
-                    rightElement
-                ) : (
-                    <>
-                        {onPressDashboard && (
-                            <TouchableOpacity
-                                style={styles.iconBtn}
-                                activeOpacity={0.7}
-                                onPress={onPressDashboard}>
-                                <IconChart size={19} color="#334155" />
-                            </TouchableOpacity>
-                        )}
-
-                        {onPressSearch && (
-                            <TouchableOpacity
-                                style={styles.iconBtn}
-                                activeOpacity={0.7}
-                                onPress={onPressSearch}>
-                                <SearchIcon size={19} color="#334155" />
-                            </TouchableOpacity>
-                        )}
-
-                        {onPressNotifications && (
-                            <TouchableOpacity
-                                style={styles.iconBtn}
-                                activeOpacity={0.7}
-                                onPress={onPressNotifications}>
-                                <BellIcon size={19} color="#334155" />
-                                {unreadCount > 0 && <View style={styles.unreadDot} />}
-                            </TouchableOpacity>
-                        )}
-
-                        <TouchableOpacity
-                            style={styles.avatarWrap}
-                            activeOpacity={0.85}
-                            onPress={onPressProfile}>
-                            {profile?.avatar_url ? (
-                                <Image source={{ uri: profile.avatar_url }} style={styles.avatarImg} />
-                            ) : (
-                                <View style={styles.avatarPlaceholder}>
-                                    <Text style={styles.avatarText}>{userInitial}</Text>
-                                </View>
-                            )}
-                            <View style={styles.onlineDot} />
-                        </TouchableOpacity>
-                    </>
+                {rightElement && (
+                    <View style={styles.extraActionWrap}>{rightElement}</View>
                 )}
+
+                {onPressDashboard && (
+                    <TouchableOpacity
+                        style={styles.iconBtn}
+                        activeOpacity={0.7}
+                        onPress={onPressDashboard}>
+                        <IconChart size={19} color="#334155" />
+                    </TouchableOpacity>
+                )}
+
+                {onPressSearch && (
+                    <TouchableOpacity
+                        style={styles.iconBtn}
+                        activeOpacity={0.7}
+                        onPress={onPressSearch}>
+                        <SearchIcon size={19} color="#334155" />
+                    </TouchableOpacity>
+                )}
+
+                {onPressNotifications && (
+                    <TouchableOpacity
+                        style={styles.iconBtn}
+                        activeOpacity={0.7}
+                        onPress={onPressNotifications}>
+                        <BellIcon size={19} color="#334155" />
+                        {unreadCount > 0 && <View style={styles.unreadDot} />}
+                    </TouchableOpacity>
+                )}
+
+                <TouchableOpacity
+                    style={styles.avatarWrap}
+                    activeOpacity={0.85}
+                    onPress={onPressProfile}>
+                    {profile?.avatar_url ? (
+                        <Image source={{ uri: profile.avatar_url }} style={styles.avatarImg} />
+                    ) : (
+                        <View style={styles.avatarPlaceholder}>
+                            <Text style={styles.avatarText}>{userInitial}</Text>
+                        </View>
+                    )}
+                    <View style={styles.onlineDot} />
+                </TouchableOpacity>
             </View>
         </View>
     );
@@ -165,6 +163,9 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         gap: 10,
+    },
+    extraActionWrap: {
+        marginRight: 2,
     },
     iconBtn: {
         padding: 6,

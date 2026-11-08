@@ -16,6 +16,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Colors } from '../../theme/colors';
 import { AppHeader } from '../../components/AppHeader';
+import { AppBottomBar, BottomNavTab } from '../../components/AppBottomBar';
 import { SmoothModal } from '../../components/SmoothModal';
 import { ChevronBackIcon } from '../../components/ChatIcons';
 import {
@@ -50,6 +51,10 @@ import {
 
 interface FlowsScreenProps {
     onBack?: () => void;
+    onNavigateTab?: (tab: BottomNavTab) => void;
+    onOpenDashboard?: () => void;
+    onOpenNotifications?: () => void;
+    onOpenProfile?: () => void;
 }
 
 // Node type meta matching web project exactly
@@ -68,7 +73,13 @@ const NODE_TYPE_META: Record<
     end: { label: 'End Flow', bg: '#F1F5F9', text: '#475569', border: '#CBD5E1', category: 'flow' },
 };
 
-export const FlowsScreen: React.FC<FlowsScreenProps> = ({ onBack }) => {
+export const FlowsScreen: React.FC<FlowsScreenProps> = ({
+    onBack,
+    onNavigateTab,
+    onOpenDashboard,
+    onOpenNotifications,
+    onOpenProfile,
+}) => {
     // -----------------------------------------------------------------
     // STATE
     // -----------------------------------------------------------------
@@ -625,6 +636,9 @@ export const FlowsScreen: React.FC<FlowsScreenProps> = ({ onBack }) => {
                 title="Flows"
                 subtitle="Visual conversational flows triggered by incoming customer messages."
                 onBack={onBack}
+                onPressDashboard={onOpenDashboard}
+                onPressNotifications={onOpenNotifications}
+                onPressProfile={onOpenProfile || (() => onNavigateTab && onNavigateTab('More'))}
                 rightElement={
                     <View style={styles.headerRightContainer}>
                         <View style={styles.betaBadge}>
@@ -866,13 +880,13 @@ export const FlowsScreen: React.FC<FlowsScreenProps> = ({ onBack }) => {
                             </View>
                             <View style={styles.templateTextWrap}>
                                 <View style={styles.templateTitleRow}>
-                                    <Text style={styles.templateTitle}>Welcome & Triage Menu</Text>
+                                    <Text style={styles.templateTitle}>Welcome menu</Text>
                                     <View style={styles.templatePill}>
                                         <Text style={styles.templatePillText}>4 steps</Text>
                                     </View>
                                 </View>
                                 <Text style={styles.templateDesc}>
-                                    Greets new contacts, presents 3 quick replies, and routes to team queues.
+                                    Greet customers who type a keyword and route them to the right agent based on whether they're new or existing.
                                 </Text>
                             </View>
                         </TouchableOpacity>
@@ -888,13 +902,13 @@ export const FlowsScreen: React.FC<FlowsScreenProps> = ({ onBack }) => {
                             </View>
                             <View style={styles.templateTextWrap}>
                                 <View style={styles.templateTitleRow}>
-                                    <Text style={styles.templateTitle}>24/7 FAQ Assistant</Text>
+                                    <Text style={styles.templateTitle}>FAQ bot</Text>
                                     <View style={styles.templatePill}>
                                         <Text style={styles.templatePillText}>7 steps</Text>
                                     </View>
                                 </View>
                                 <Text style={styles.templateDesc}>
-                                    Interactive list message answering common queries (hours, pricing, refunds).
+                                    Answer common questions automatically. Customer picks a topic from a list; the bot replies with the answer and ends.
                                 </Text>
                             </View>
                         </TouchableOpacity>
@@ -910,13 +924,13 @@ export const FlowsScreen: React.FC<FlowsScreenProps> = ({ onBack }) => {
                             </View>
                             <View style={styles.templateTextWrap}>
                                 <View style={styles.templateTitleRow}>
-                                    <Text style={styles.templateTitle}>Lead Capture & Qualification</Text>
+                                    <Text style={styles.templateTitle}>Lead capture</Text>
                                     <View style={styles.templatePill}>
                                         <Text style={styles.templatePillText}>6 steps</Text>
                                     </View>
                                 </View>
                                 <Text style={styles.templateDesc}>
-                                    Collects customer name, email, and intent on first inbound message.
+                                    Greet first-time inbounds, capture name + email + company, then hand off to sales with the answers in the note.
                                 </Text>
                             </View>
                         </TouchableOpacity>
@@ -1763,6 +1777,12 @@ export const FlowsScreen: React.FC<FlowsScreenProps> = ({ onBack }) => {
                     </View>
                 </SafeAreaView>
             </Modal>
+
+            {/* Unified 5-Tab Bottom Bar: Inbox, Automation, AI Agent, Broadcast, More */}
+            <AppBottomBar
+                activeTab="Automation"
+                onNavigateTab={onNavigateTab}
+            />
         </SafeAreaView>
     );
 };

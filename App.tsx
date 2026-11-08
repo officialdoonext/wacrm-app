@@ -158,7 +158,8 @@ function OnboardingScreenWrapper({ navigation, route }: NativeStackScreenProps<R
 function DashboardScreenWrapper({ navigation }: NativeStackScreenProps<RootStackParamList, 'Dashboard'>) {
   return (
     <DashboardScreen
-      onNavigateTab={(tab) => navigation.navigate(tab)}
+      onBack={() => navigation.goBack()}
+      onNavigateTab={(tab) => navigation.navigate(tab as any)}
       onQuickAction={(action) => {
         if (action === 'new_chat') navigation.navigate('Inbox');
         if (action === 'new_broadcast') navigation.navigate('Broadcast');
@@ -192,13 +193,22 @@ function ChatScreenWrapper({ navigation, route }: NativeStackScreenProps<RootSta
 }
 
 function AutomationScreenWrapper({ navigation }: NativeStackScreenProps<RootStackParamList, 'Automation'>) {
-  return <AutomationScreen onNavigateTab={(tab) => navigation.navigate(tab)} />;
+  return (
+    <AutomationScreen
+      onNavigateTab={(tab) => navigation.navigate(tab)}
+      onOpenDashboard={() => navigation.navigate('Dashboard')}
+      onOpenNotifications={() => navigation.navigate('Notifications')}
+    />
+  );
 }
 
 function ContactsScreenWrapper({ navigation }: NativeStackScreenProps<RootStackParamList, 'Contacts'>) {
   return (
     <ContactsScreen
+      onBack={() => navigation.goBack()}
       onNavigateTab={(tab) => navigation.navigate(tab)}
+      onOpenDashboard={() => navigation.navigate('Dashboard')}
+      onOpenNotifications={() => navigation.navigate('Notifications')}
       onSelectContact={(contact: ContactItem) => {
         navigation.navigate('Chat', {
           participant: {
@@ -220,6 +230,9 @@ function PipelinesScreenWrapper({ navigation }: NativeStackScreenProps<RootStack
   return (
     <PipelinesScreen
       onBack={() => navigation.goBack()}
+      onNavigateTab={(tab) => navigation.navigate(tab)}
+      onOpenDashboard={() => navigation.navigate('Dashboard')}
+      onOpenNotifications={() => navigation.navigate('Notifications')}
       onOpenChat={(contactName, phone) => {
         navigation.navigate('Chat', {
           participant: {
@@ -237,6 +250,9 @@ function CommerceScreenWrapper({ navigation }: NativeStackScreenProps<RootStackP
   return (
     <CommerceScreen
       onBack={() => navigation.goBack()}
+      onNavigateTab={(tab) => navigation.navigate(tab)}
+      onOpenDashboard={() => navigation.navigate('Dashboard')}
+      onOpenNotifications={() => navigation.navigate('Notifications')}
       onSendProductInChat={() => {
         navigation.navigate('Inbox');
       }}
@@ -245,19 +261,45 @@ function CommerceScreenWrapper({ navigation }: NativeStackScreenProps<RootStackP
 }
 
 function FlowsScreenWrapper({ navigation }: NativeStackScreenProps<RootStackParamList, 'Flows'>) {
-  return <FlowsScreen onBack={() => navigation.goBack()} />;
+  return (
+    <FlowsScreen
+      onBack={() => navigation.goBack()}
+      onNavigateTab={(tab) => navigation.navigate(tab)}
+      onOpenDashboard={() => navigation.navigate('Dashboard')}
+      onOpenNotifications={() => navigation.navigate('Notifications')}
+    />
+  );
 }
 
 function AgentsScreenWrapper({ navigation }: NativeStackScreenProps<RootStackParamList, 'Agents'>) {
-  return <AgentsScreen onBack={() => navigation.goBack()} />;
+  return (
+    <AgentsScreen
+      onBack={() => navigation.goBack()}
+      onNavigateTab={(tab) => navigation.navigate(tab)}
+      onOpenDashboard={() => navigation.navigate('Dashboard')}
+      onOpenNotifications={() => navigation.navigate('Notifications')}
+    />
+  );
 }
 
 function NotificationsScreenWrapper({ navigation }: NativeStackScreenProps<RootStackParamList, 'Notifications'>) {
-  return <NotificationsScreen onBack={() => navigation.goBack()} />;
+  return (
+    <NotificationsScreen
+      onBack={() => navigation.goBack()}
+      onNavigateTab={(tab) => navigation.navigate(tab)}
+      onOpenDashboard={() => navigation.navigate('Dashboard')}
+    />
+  );
 }
 
 function BroadcastScreenWrapper({ navigation }: NativeStackScreenProps<RootStackParamList, 'Broadcast'>) {
-  return <BroadcastScreen onNavigateTab={(tab) => navigation.navigate(tab)} />;
+  return (
+    <BroadcastScreen
+      onNavigateTab={(tab) => navigation.navigate(tab)}
+      onOpenDashboard={() => navigation.navigate('Dashboard')}
+      onOpenNotifications={() => navigation.navigate('Notifications')}
+    />
+  );
 }
 
 function MoreScreenWrapper({ navigation }: NativeStackScreenProps<RootStackParamList, 'More'>) {
@@ -274,6 +316,8 @@ function MoreScreenWrapper({ navigation }: NativeStackScreenProps<RootStackParam
       onOpenFlows={() => navigation.navigate('Flows')}
       onOpenAgents={() => navigation.navigate('Agents')}
       onOpenDashboard={() => navigation.navigate('Dashboard')}
+      onOpenNotifications={() => navigation.navigate('Notifications')}
+      onOpenContacts={() => navigation.navigate('Contacts')}
     />
   );
 }

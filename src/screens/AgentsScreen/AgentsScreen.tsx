@@ -16,6 +16,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Colors } from '../../theme/colors';
 import { AppHeader } from '../../components/AppHeader';
+import { AppBottomBar, BottomNavTab } from '../../components/AppBottomBar';
 import { SmoothModal } from '../../components/SmoothModal';
 import { ChevronBackIcon } from '../../components/ChatIcons';
 import {
@@ -82,7 +83,21 @@ const SYSTEM_PROMPT_PRESETS = [
     },
 ];
 
-export const AgentsScreen: React.FC<{ onBack?: () => void }> = ({ onBack }) => {
+export interface AgentsScreenProps {
+    onBack?: () => void;
+    onNavigateTab?: (tab: BottomNavTab) => void;
+    onOpenDashboard?: () => void;
+    onOpenNotifications?: () => void;
+    onOpenProfile?: () => void;
+}
+
+export const AgentsScreen: React.FC<AgentsScreenProps> = ({
+    onBack,
+    onNavigateTab,
+    onOpenDashboard,
+    onOpenNotifications,
+    onOpenProfile,
+}) => {
     // -----------------------------------------------------------------
     // TABS
     // -----------------------------------------------------------------
@@ -384,6 +399,10 @@ export const AgentsScreen: React.FC<{ onBack?: () => void }> = ({ onBack }) => {
                 title="AI Agents"
                 subtitle="Autonomous conversational copilot & knowledge bases"
                 onBack={onBack}
+                onPressDashboard={onOpenDashboard}
+                onPressNotifications={onOpenNotifications}
+                onPressProfile={onOpenProfile || (() => onNavigateTab && onNavigateTab('More'))}
+                unreadCount={0}
                 rightElement={
                     <View style={styles.headerRightRow}>
                         <View
@@ -1134,6 +1153,12 @@ export const AgentsScreen: React.FC<{ onBack?: () => void }> = ({ onBack }) => {
                     </ScrollView>
                 </KeyboardAvoidingView>
             </SmoothModal>
+
+            {/* Unified 5-Tab Bottom Bar: Inbox, Automation, AI Agent (active), Broadcast, More */}
+            <AppBottomBar
+                activeTab="Agents"
+                onNavigateTab={onNavigateTab}
+            />
         </SafeAreaView>
     );
 };

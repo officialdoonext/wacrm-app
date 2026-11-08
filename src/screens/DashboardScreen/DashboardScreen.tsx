@@ -11,6 +11,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Colors } from '../../theme/colors';
 import { AppHeader } from '../../components/AppHeader';
+import { AppBottomBar, BottomNavTab } from '../../components/AppBottomBar';
 import {
     IconChat,
     IconMegaphone,
@@ -27,12 +28,14 @@ import { crmService, DashboardMetrics } from '../../services/crmService';
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 interface DashboardScreenProps {
-    onNavigateTab?: (tab: 'Inbox' | 'Automation' | 'Contacts' | 'Broadcast' | 'More') => void;
+    onBack?: () => void;
+    onNavigateTab?: (tab: BottomNavTab | string) => void;
     onQuickAction?: (action: 'new_chat' | 'new_broadcast' | 'new_contact' | 'new_deal') => void;
     onOpenNotifications?: () => void;
 }
 
 export const DashboardScreen: React.FC<DashboardScreenProps> = ({
+    onBack,
     onNavigateTab,
     onQuickAction,
     onOpenNotifications,
@@ -88,11 +91,13 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
         <SafeAreaView style={styles.safeArea} edges={['top', 'bottom', 'left', 'right']}>
             <StatusBar barStyle="dark-content" />
             <View style={styles.container}>
-                {/* Standard Unified Header: Logo on Left, Profile on Right */}
+                {/* Standard Unified Header: Logo on Left, Profile & Actions on Right */}
                 <AppHeader
+                    onBack={onBack}
+                    onPressDashboard={() => {}}
                     onPressProfile={() => onNavigateTab && onNavigateTab('More')}
-                    onPressSearch={() => onNavigateTab && onNavigateTab('Inbox')}
                     onPressNotifications={onOpenNotifications}
+                    unreadCount={0}
                 />
 
                 {/* Subheader & Timeframe Selector */}
@@ -395,6 +400,12 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
 
                     <View style={{ height: 40 }} />
                 </ScrollView>
+
+                {/* Unified 5-Tab Bottom Bar: Inbox, Automation, AI Agent, Broadcast, More */}
+                <AppBottomBar
+                    activeTab="More"
+                    onNavigateTab={onNavigateTab}
+                />
             </View>
         </SafeAreaView>
     );
