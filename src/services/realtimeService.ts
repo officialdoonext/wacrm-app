@@ -90,7 +90,19 @@ class RealtimeService {
         broadcastTyping: (conversationId: string, isTyping: boolean) => Promise<void>;
         unsubscribe: () => void;
     } {
-        const channelKey = `presence:${accountId}`;
+        const channelKey = `presence_${accountId}_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+        try {
+            const existing = (supabase as any).getChannels ? (supabase as any).getChannels() : [];
+            if (Array.isArray(existing)) {
+                for (const ch of existing) {
+                    if (ch?.topic?.includes(`presence_${accountId}`)) {
+                        supabase.removeChannel(ch);
+                    }
+                }
+            }
+        } catch {
+            // ignore
+        }
         const channel = supabase.channel(channelKey);
 
         channel
