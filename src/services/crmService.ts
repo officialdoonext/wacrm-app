@@ -1045,14 +1045,13 @@ class CRMService {
         .select('*')
         .order('created_at', { ascending: false });
 
-      if (error || !data || data.length === 0) {
-        if (flowsCache.length === 0) {
-          flowsCache = this.getDefaultStarterFlows();
-        }
-        return flowsCache;
+      if (error) {
+        console.warn('fetchFlows Supabase error:', error.message);
+        return flowsCache; // return whatever is cached, never fake data
       }
 
-      flowsCache = data.map((f: any) => ({
+      // Map real rows — empty array is valid (user has no flows yet)
+      flowsCache = (data ?? []).map((f: any) => ({
         id: f.id,
         name: f.name || 'Untitled Flow',
         description: f.description || null,
@@ -1069,11 +1068,8 @@ class CRMService {
 
       return flowsCache;
     } catch (err) {
-      console.warn('Fetch flows exception, using starters:', err);
-      if (flowsCache.length === 0) {
-        flowsCache = this.getDefaultStarterFlows();
-      }
-      return flowsCache;
+      console.warn('fetchFlows exception:', err);
+      return flowsCache; // return current cache, never inject fake data
     }
   }
 
@@ -2006,70 +2002,138 @@ class CRMService {
     baseUrl?: string
   ): Promise<{ success: boolean; latencyMs: number; message: string }> {
     const start = Date.now();
-    // Simulate real connectivity & handshake latency
-    await new Promise<void>((resolve) => setTimeout(() => resolve(), 850));
-    const latencyMs = Date.now() - start;
 
-    if (!apiKey && !aiConfigCache?.has_key) {
+    // 1. Try Next.js API server endpoint
+    try {
+      const res = await backendApi.testAIKey({
+        provider,
+        model,
+        api_key: apiKey || undefined,
+        base_url: baseUrl || undefined,
+      });
+      if (res.data && res.data.success) {
+        const latencyMs = res.data.latency_ms || Date.now() - start;
+        return {
+          success: true,
+          latencyMs,
+          message: res.data.message || `Successfully connected to ${provider.toUpperCase()} (${model}) in ${latencyMs}ms.`,
+        };
+      }
+      if (res.error) {
+        return {
+          success: false,
+          latencyMs: Date.now() - start,
+          message: res.error.message || 'Connection test failed. Please verify credentials.',
+        };
+      }
+    } catch {
+      // fallback to direct provider ping
+    }
+
+    // 2. Direct provider validation
+    const keyToUse = apiKey || (aiConfigCache?.has_key ? '' : '');
+    if (!keyToUse) {
       return {
         success: false,
-        latencyMs,
+        latencyMs: Date.now() - start,
         message: 'API Key is missing or empty. Please enter your provider key.',
       };
     }
 
-    return {
-      success: true,
-      latencyMs,
-      message: `Successfully connected to ${provider.toUpperCase()} (${model}) in ${latencyMs}ms. Ready to serve conversations.`,
-    };
+    try {
+      if (provider === 'openai') {
+        const ping = await fetch('https://api.openai.com/v1/models', {
+          headers: { Authorization: `Bearer ${keyToUse}` },
+        });
+        const latencyMs = Date.now() - start;
+        if (ping.ok) {
+          return { success: true, latencyMs, message: `Connected to OpenAI (${model}) in ${latencyMs}ms.` };
+        }
+        const errJson = await ping.json().catch(() => ({}));
+        return { success: false, latencyMs, message: errJson?.error?.message || `OpenAI returned status ${ping.status}` };
+      }
+
+      if (provider === 'gemini') {
+        const ping = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${keyToUse}`);
+        const latencyMs = Date.now() - start;
+        if (ping.ok) {
+          return { success: true, latencyMs, message: `Connected to Google Gemini (${model}) in ${latencyMs}ms.` };
+        }
+        const errJson = await ping.json().catch(() => ({}));
+        return { success: false, latencyMs, message: errJson?.error?.message || `Gemini returned status ${ping.status}` };
+      }
+
+      if (provider === 'anthropic') {
+        const ping = await fetch('https://api.anthropic.com/v1/messages', {
+          method: 'POST',
+          headers: {
+            'x-api-key': keyToUse,
+            'anthropic-version': '2023-06-01',
+            'content-type': 'application/json',
+          },
+          body: JSON.stringify({
+            model: model || 'claude-3-5-sonnet-20241022',
+            max_tokens: 1,
+            messages: [{ role: 'user', content: 'ping' }],
+          }),
+        });
+        const latencyMs = Date.now() - start;
+        if (ping.ok || ping.status === 200) {
+          return { success: true, latencyMs, message: `Connected to Anthropic (${model}) in ${latencyMs}ms.` };
+        }
+        const errJson = await ping.json().catch(() => ({}));
+        return { success: false, latencyMs, message: errJson?.error?.message || `Anthropic returned status ${ping.status}` };
+      }
+
+      const latencyMs = Date.now() - start;
+      return { success: true, latencyMs, message: `Verified provider settings for ${provider}.` };
+    } catch (err: any) {
+      return {
+        success: false,
+        latencyMs: Date.now() - start,
+        message: err?.message || 'Network error testing AI provider connection.',
+      };
+    }
   }
 
   async testAiPlayground(
     messages: Array<{ role: 'user' | 'assistant'; content: string }>,
     configOverride?: Partial<DynamicAiConfig>
   ): Promise<{ reply: string; handoff: boolean; model: string }> {
-    const lastUserMsg = [...messages].reverse().find((m) => m.role === 'user')?.content || '';
-    const clean = lastUserMsg.toLowerCase();
-
-    // Check handoff intent
-    const handoffTriggers = ['human', 'agent', 'support', 'representative', 'person', 'talk to someone', 'real person', 'call'];
-    const needsHandoff = handoffTriggers.some((t) => clean.includes(t));
-
-    if (needsHandoff) {
-      return {
-        reply:
-          "I understand you'd like to speak with a human agent. I have routed this conversation to our support team queue. A representative will be with you shortly!",
-        handoff: true,
-        model: configOverride?.model || aiConfigCache?.model || 'gpt-4o-mini',
-      };
+    // 1. Try calling the real Next.js /api/ai/playground route
+    try {
+      const res = await backendApi.sendAIPlayground(messages);
+      if (res.data) {
+        return {
+          reply: res.data.reply,
+          handoff: Boolean(res.data.handoff),
+          model: configOverride?.model || aiConfigCache?.model || 'gpt-4o-mini',
+        };
+      }
+      if (res.error) {
+        const errMsg = res.error.message;
+        if (errMsg.includes('not configured') || errMsg.includes('ai_not_configured')) {
+          const e: any = new Error('No AI agent configured. Please configure your provider in Setup first.');
+          e.code = 'ai_not_configured';
+          throw e;
+        }
+        throw res.error;
+      }
+    } catch (err: any) {
+      if (err?.code === 'ai_not_configured') throw err;
+      // If network unreachable, check if AI is configured in state
+      const currentConfig = aiConfigCache || (await this.fetchAiConfig());
+      if (!currentConfig.has_key && !configOverride?.has_key) {
+        const e: any = new Error('No AI agent configured. Please configure your provider in Setup first.');
+        e.code = 'ai_not_configured';
+        throw e;
+      }
+      throw err;
     }
 
-    // Retrieve knowledge base content
-    const docs = await this.fetchAiKnowledgeDocs();
-    let relevantSnippet = '';
-    if (clean.includes('refund') || clean.includes('cancel') || clean.includes('money')) {
-      relevantSnippet = 'We offer a 100% money-back guarantee within 14 days of purchase with no questions asked.';
-    } else if (clean.includes('price') || clean.includes('plan') || clean.includes('cost') || clean.includes('subscription')) {
-      relevantSnippet = 'Our plans start at $29/mo for Starter, $99/mo for Pro, and custom Enterprise tiers with unlimited team seats and AI auto-replies.';
-    } else if (clean.includes('hour') || clean.includes('time') || clean.includes('open') || clean.includes('location')) {
-      relevantSnippet = 'Our support team is available Monday through Saturday, 9:00 AM to 7:00 PM IST.';
-    }
-
-    let answer = '';
-    if (relevantSnippet) {
-      answer = `Based on our company knowledge base: ${relevantSnippet} Please let me know if you need more details!`;
-    } else if (clean.includes('hello') || clean.includes('hi') || clean.includes('hey')) {
-      answer = `Hello! Thank you for reaching out to us. I am your WhatsApp AI assistant. How may I assist you with our services today?`;
-    } else {
-      answer = `Thank you for your question regarding "${lastUserMsg}". Our system has recorded your query, and we are happy to assist. Is there any specific plan, order, or service feature you would like to explore?`;
-    }
-
-    return {
-      reply: answer,
-      handoff: false,
-      model: configOverride?.model || aiConfigCache?.model || 'gpt-4o-mini',
-    };
+    const e: any = new Error('Unable to contact AI service.');
+    e.code = 'ai_error';
+    throw e;
   }
 
   async fetchAiKnowledgeDocs(forceRefresh = false): Promise<DynamicAiKnowledgeDoc[]> {
@@ -2080,75 +2144,43 @@ class CRMService {
     try {
       const user = await authService.getCurrentUser();
       const profile = await authService.getProfile();
-      const accountId = profile?.account_id || user?.id || 'default-account';
+      const accountId = profile?.account_id || user?.id;
+      if (!accountId) return aiKnowledgeCache;
 
+      // Web project uses table: ai_knowledge_documents (not ai_knowledge_docs)
       const { data, error } = await supabase
-        .from('ai_knowledge_docs')
-        .select('*')
+        .from('ai_knowledge_documents')
+        .select('id, title, content, updated_at, created_at')
         .eq('account_id', accountId)
-        .order('created_at', { ascending: false });
+        .order('updated_at', { ascending: false });
 
-      if (!error && data && data.length > 0) {
-        aiKnowledgeCache = data.map((d: any) => ({
-          id: d.id,
-          account_id: d.account_id,
-          title: d.title || 'Untitled Document',
-          content: d.content || '',
-          chunks_count: d.chunks_count || 8,
-          indexed: Boolean(d.indexed ?? true),
-          created_at: d.created_at || new Date().toISOString(),
-          updated_at: d.updated_at || new Date().toISOString(),
-        }));
+      if (error) {
+        console.warn('fetchAiKnowledgeDocs Supabase error:', error.message);
         return aiKnowledgeCache;
       }
+
+      // Empty is valid — user has no documents yet
+      aiKnowledgeCache = (data ?? []).map((d: any) => ({
+        id: d.id,
+        account_id: accountId,
+        title: d.title || 'Untitled Document',
+        content: d.content || '',
+        chunks_count: d.chunks_count || 0,
+        indexed: Boolean(d.indexed ?? true),
+        created_at: d.created_at || new Date().toISOString(),
+        updated_at: d.updated_at || new Date().toISOString(),
+      }));
+      return aiKnowledgeCache;
     } catch (err) {
-      console.warn('Supabase ai_knowledge_docs fetch warning:', err);
+      console.warn('fetchAiKnowledgeDocs exception:', err);
+      return aiKnowledgeCache;
     }
-
-    if (aiKnowledgeCache.length === 0) {
-      const now = new Date().toISOString();
-      aiKnowledgeCache = [
-        {
-          id: 'k-refund-policy',
-          title: 'Refund & Cancellation Policy 2026',
-          content:
-            'We offer a 100% money-back guarantee within 14 days of purchase. Refunds are processed back to the original payment method within 3 to 5 business days.',
-          chunks_count: 8,
-          indexed: true,
-          created_at: now,
-          updated_at: now,
-        },
-        {
-          id: 'k-pricing-plans',
-          title: 'Pricing & Enterprise Subscription Plans',
-          content:
-            'Starter plan is $29/mo with 1,000 conversations. Pro plan is $99/mo with unlimited workflows and AI copilot auto-replies. Enterprise plans are custom tailored.',
-          chunks_count: 14,
-          indexed: true,
-          created_at: now,
-          updated_at: now,
-        },
-        {
-          id: 'k-whatsapp-faq',
-          title: 'WhatsApp Business API Support Hours & SLA',
-          content:
-            'Operating hours are Monday through Saturday, 9:00 AM - 7:00 PM IST. Priority support tickets have an average response time of under 15 minutes.',
-          chunks_count: 22,
-          indexed: true,
-          created_at: now,
-          updated_at: now,
-        },
-      ];
-    }
-
-    return aiKnowledgeCache;
   }
 
   async createAiKnowledgeDoc(title: string, content: string): Promise<DynamicAiKnowledgeDoc> {
-    const id = `kdoc_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
     const now = new Date().toISOString();
-    const doc: DynamicAiKnowledgeDoc = {
-      id,
+    let doc: DynamicAiKnowledgeDoc = {
+      id: `kdoc_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
       title: title.trim(),
       content: content.trim(),
       chunks_count: Math.max(1, Math.ceil(content.length / 300)),
@@ -2160,18 +2192,34 @@ class CRMService {
     try {
       const user = await authService.getCurrentUser();
       const profile = await authService.getProfile();
-      const accountId = profile?.account_id || user?.id || 'default-account';
-
-      await supabase.from('ai_knowledge_docs').insert({
-        id,
-        account_id: accountId,
-        title: doc.title,
-        content: doc.content,
-        chunks_count: doc.chunks_count,
-        indexed: true,
-      });
+      const accountId = profile?.account_id || user?.id;
+      if (accountId) {
+        const { data, error } = await supabase
+          .from('ai_knowledge_documents')
+          .insert({
+            account_id: accountId,
+            title: doc.title,
+            content: doc.content,
+          })
+          .select('id, title, content, updated_at, created_at')
+          .single();
+        if (!error && data) {
+          doc = {
+            id: data.id,
+            account_id: accountId,
+            title: data.title || doc.title,
+            content: data.content || doc.content,
+            chunks_count: doc.chunks_count,
+            indexed: true,
+            created_at: data.created_at || now,
+            updated_at: data.updated_at || now,
+          };
+        } else if (error) {
+          console.warn('createAiKnowledgeDoc error:', error.message);
+        }
+      }
     } catch (err) {
-      console.warn('Create knowledge doc direct insert warning:', err);
+      console.warn('createAiKnowledgeDoc exception:', err);
     }
 
     aiKnowledgeCache = [doc, ...aiKnowledgeCache];
@@ -2184,16 +2232,15 @@ class CRMService {
 
     try {
       await supabase
-        .from('ai_knowledge_docs')
+        .from('ai_knowledge_documents')
         .update({
           title: title.trim(),
           content: content.trim(),
-          chunks_count: chunks,
           updated_at: now,
         })
         .eq('id', id);
     } catch (err) {
-      console.warn('Update knowledge doc warning:', err);
+      console.warn('updateAiKnowledgeDoc exception:', err);
     }
 
     aiKnowledgeCache = aiKnowledgeCache.map((d) =>
@@ -2215,9 +2262,9 @@ class CRMService {
 
   async deleteAiKnowledgeDoc(id: string): Promise<boolean> {
     try {
-      await supabase.from('ai_knowledge_docs').delete().eq('id', id);
+      await supabase.from('ai_knowledge_documents').delete().eq('id', id);
     } catch (err) {
-      console.warn('Delete knowledge doc warning:', err);
+      console.warn('deleteAiKnowledgeDoc exception:', err);
     }
 
     aiKnowledgeCache = aiKnowledgeCache.filter((d) => d.id !== id);
@@ -2225,44 +2272,112 @@ class CRMService {
   }
 
   async fetchAiUsage(days = 30): Promise<DynamicAiUsage> {
-    const totalCalls = 1420;
-    const promptTokens = 184520;
-    const completionTokens = 42100;
-    const totalTokens = promptTokens + completionTokens;
-    const estimatedCostUsd = 0.38;
+    // 1. Try Next.js API server
+    try {
+      const res = await backendApi.getAIUsage(days);
+      if (res.data) {
+        return {
+          window_days: res.data.window_days || days,
+          totals: {
+            ...res.data.totals,
+            estimated_cost_usd: Number(((res.data.totals.total_tokens / 1_000_000) * 0.15).toFixed(4)),
+          },
+          by_mode: res.data.by_mode,
+          by_model: res.data.by_model,
+          daily: res.data.daily,
+        };
+      }
+    } catch {
+      // Fallback to direct Supabase query
+    }
 
+    // 2. Query Supabase ai_usage_log table
+    try {
+      const user = await authService.getCurrentUser();
+      const profile = await authService.getProfile();
+      const accountId = profile?.account_id || user?.id;
+
+      if (accountId) {
+        const cutoffDate = new Date();
+        cutoffDate.setDate(cutoffDate.getDate() - days);
+
+        const { data, error } = await supabase
+          .from('ai_usage_log')
+          .select('created_at, mode, provider, model, prompt_tokens, completion_tokens, total_tokens')
+          .eq('account_id', accountId)
+          .gte('created_at', cutoffDate.toISOString())
+          .order('created_at', { ascending: false });
+
+        if (!error && data && data.length > 0) {
+          let promptTokens = 0;
+          let completionTokens = 0;
+          let totalTokens = 0;
+
+          const byMode = {
+            auto_reply: { calls: 0, tokens: 0 },
+            draft: { calls: 0, tokens: 0 },
+          };
+
+          const modelMap = new Map<string, { model: string; provider: string; calls: number; tokens: number }>();
+          const dailyMap = new Map<string, { date: string; calls: number; tokens: number }>();
+
+          for (const r of data) {
+            promptTokens += r.prompt_tokens || 0;
+            completionTokens += r.completion_tokens || 0;
+            totalTokens += r.total_tokens || 0;
+
+            const mode = r.mode === 'auto_reply' ? 'auto_reply' : 'draft';
+            byMode[mode].calls += 1;
+            byMode[mode].tokens += r.total_tokens || 0;
+
+            const key = `${r.provider}:${r.model}`;
+            const existing = modelMap.get(key) || { model: r.model, provider: r.provider, calls: 0, tokens: 0 };
+            existing.calls += 1;
+            existing.tokens += r.total_tokens || 0;
+            modelMap.set(key, existing);
+
+            const dayKey = (r.created_at || '').substring(0, 10);
+            const dayItem = dailyMap.get(dayKey) || { date: dayKey, calls: 0, tokens: 0 };
+            dayItem.calls += 1;
+            dayItem.tokens += r.total_tokens || 0;
+            dailyMap.set(dayKey, dayItem);
+          }
+
+          return {
+            window_days: days,
+            totals: {
+              calls: data.length,
+              prompt_tokens: promptTokens,
+              completion_tokens: completionTokens,
+              total_tokens: totalTokens,
+              estimated_cost_usd: Number(((totalTokens / 1_000_000) * 0.15).toFixed(4)),
+            },
+            by_mode: byMode,
+            by_model: Array.from(modelMap.values()).sort((a, b) => b.tokens - a.tokens),
+            daily: Array.from(dailyMap.values()),
+          };
+        }
+      }
+    } catch (err) {
+      console.warn('Supabase ai_usage_log query error:', err);
+    }
+
+    // Return empty 0-usage state when no logs exist — ZERO mock data!
     return {
       window_days: days,
       totals: {
-        calls: totalCalls,
-        prompt_tokens: promptTokens,
-        completion_tokens: completionTokens,
-        total_tokens: totalTokens,
-        estimated_cost_usd: estimatedCostUsd,
+        calls: 0,
+        prompt_tokens: 0,
+        completion_tokens: 0,
+        total_tokens: 0,
+        estimated_cost_usd: 0,
       },
       by_mode: {
-        auto_reply: { calls: 1150, tokens: 185000 },
-        draft: { calls: 270, tokens: 41620 },
+        auto_reply: { calls: 0, tokens: 0 },
+        draft: { calls: 0, tokens: 0 },
       },
-      by_model: [
-        { model: 'gpt-4o-mini', provider: 'openai', calls: 940, tokens: 152000 },
-        { model: 'claude-3-5-sonnet', provider: 'anthropic', calls: 320, tokens: 54000 },
-        { model: 'gemini-1.5-flash', provider: 'gemini', calls: 160, tokens: 20620 },
-      ],
-      daily: [
-        { date: 'Oct 28', calls: 42, tokens: 6800 },
-        { date: 'Oct 29', calls: 58, tokens: 9100 },
-        { date: 'Oct 30', calls: 64, tokens: 10400 },
-        { date: 'Oct 31', calls: 51, tokens: 8200 },
-        { date: 'Nov 01', calls: 73, tokens: 11900 },
-        { date: 'Nov 02', calls: 45, tokens: 7300 },
-        { date: 'Nov 03', calls: 82, tokens: 13400 },
-        { date: 'Nov 04', calls: 91, tokens: 14800 },
-        { date: 'Nov 05', calls: 88, tokens: 14200 },
-        { date: 'Nov 06', calls: 79, tokens: 12800 },
-        { date: 'Nov 07', calls: 95, tokens: 15600 },
-        { date: 'Nov 08', calls: 104, tokens: 16900 },
-      ],
+      by_model: [],
+      daily: [],
     };
   }
 }

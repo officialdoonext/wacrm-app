@@ -167,6 +167,9 @@ export const AgentsScreen: React.FC<AgentsScreenProps> = ({
             setCustomModelInput(cfg.model);
             if (cfg.has_key) {
                 setApiKeyInput(MASKED_KEY);
+            } else {
+                // If AI is not configured, land on Setup tab like web app
+                setCurrentTab('setup');
             }
         } catch (err) {
             console.warn('Failed to load AI config:', err);
@@ -394,17 +397,19 @@ export const AgentsScreen: React.FC<AgentsScreenProps> = ({
         <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
             <StatusBar barStyle="dark-content" />
 
-            {/* Header */}
+            {/* Top Navigation Bar - Standard Universal AppHeader matching all screens */}
             <AppHeader
-                title="AI Agents"
-                subtitle="Autonomous conversational copilot & knowledge bases"
-                onBack={onBack}
                 onPressDashboard={onOpenDashboard}
                 onPressNotifications={onOpenNotifications}
                 onPressProfile={onOpenProfile || (() => onNavigateTab && onNavigateTab('More'))}
                 unreadCount={0}
-                rightElement={
-                    <View style={styles.headerRightRow}>
+            />
+
+            {/* Page Sub-Header with Title & Ready/Setup Status badge */}
+            <View style={styles.pageSubHeader}>
+                <View style={styles.pageSubHeaderLeft}>
+                    <View style={styles.titleRow}>
+                        <Text style={styles.pageTitle}>AI Agents</Text>
                         <View
                             style={[
                                 styles.headerStatusBadge,
@@ -433,8 +438,11 @@ export const AgentsScreen: React.FC<AgentsScreenProps> = ({
                             </Text>
                         </View>
                     </View>
-                }
-            />
+                    <Text style={styles.pageSubtitle} numberOfLines={2}>
+                        Autonomous conversational copilot & knowledge bases
+                    </Text>
+                </View>
+            </View>
 
             {/* Top Navigation Tabs */}
             <View style={styles.tabBarContainer}>
@@ -997,6 +1005,16 @@ export const AgentsScreen: React.FC<AgentsScreenProps> = ({
 
                     {isLoadingUsage || !usageData ? (
                         <ActivityIndicator size="large" color="#00A859" style={{ marginVertical: 32 }} />
+                    ) : usageData.totals.calls === 0 ? (
+                        <View style={styles.emptyUsageWrap}>
+                            <View style={styles.emptyUsageIconCircle}>
+                                <BarChart3Icon size={32} color="#94A3B8" />
+                            </View>
+                            <Text style={styles.emptyUsageTitle}>No AI Usage in the Last {usageWindow} Days</Text>
+                            <Text style={styles.emptyUsageDesc}>
+                                Token usage and model call metrics will appear here when your AI agent generates replies or drafts.
+                            </Text>
+                        </View>
                     ) : (
                         <>
                             {/* KPI Grid */}
@@ -1170,6 +1188,36 @@ const styles = StyleSheet.create({
     safeArea: {
         flex: 1,
         backgroundColor: '#FFFFFF',
+    },
+    pageSubHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        paddingHorizontal: 16,
+        paddingTop: 10,
+        paddingBottom: 10,
+        backgroundColor: '#FFFFFF',
+        borderBottomWidth: 1,
+        borderBottomColor: '#F1F5F9',
+    },
+    pageSubHeaderLeft: {
+        flex: 1,
+    },
+    titleRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+        marginBottom: 2,
+    },
+    pageTitle: {
+        fontSize: 20,
+        fontWeight: '700',
+        color: '#0F172A',
+    },
+    pageSubtitle: {
+        fontSize: 12,
+        color: '#64748B',
+        lineHeight: 16,
     },
     headerRightRow: {
         flexDirection: 'row',
@@ -1689,6 +1737,34 @@ const styles = StyleSheet.create({
         color: '#64748B',
         textAlign: 'center',
         paddingHorizontal: 24,
+    },
+    emptyUsageWrap: {
+        alignItems: 'center',
+        paddingVertical: 48,
+        paddingHorizontal: 24,
+    },
+    emptyUsageIconCircle: {
+        width: 60,
+        height: 60,
+        borderRadius: 30,
+        backgroundColor: '#F1F5F9',
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginBottom: 16,
+    },
+    emptyUsageTitle: {
+        fontSize: 16,
+        fontWeight: '700',
+        color: '#0F172A',
+        marginBottom: 6,
+        textAlign: 'center',
+    },
+    emptyUsageDesc: {
+        fontSize: 13,
+        color: '#64748B',
+        textAlign: 'center',
+        lineHeight: 18,
+        maxWidth: 300,
     },
     docCard: {
         backgroundColor: '#FFFFFF',

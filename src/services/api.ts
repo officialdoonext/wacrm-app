@@ -219,22 +219,156 @@ class BackendApiService {
   async getAIConfig() {
     return this.request<{
       configured: boolean;
-      provider: string;
-      model: string;
-      is_active: boolean;
-      auto_reply_enabled: boolean;
-      auto_reply_max_messages: number;
+      provider?: string;
+      model?: string;
+      base_url?: string | null;
+      system_prompt?: string | null;
+      is_active?: boolean;
+      auto_reply_enabled?: boolean;
+      auto_reply_max_per_conversation?: number;
+      handoff_agent_id?: string | null;
+      has_key?: boolean;
+      has_embeddings_key?: boolean;
     }>('/ai/config', { method: 'GET' });
   }
 
+  async saveAIConfig(body: any) {
+    return this.request<{ success: boolean }>('/ai/config', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    });
+  }
+
+  async deleteAIConfig() {
+    return this.request<{ success: boolean }>('/ai/config', {
+      method: 'DELETE',
+    });
+  }
+
+  async testAIKey(body: {
+    provider: string;
+    model: string;
+    api_key?: string;
+    base_url?: string;
+  }) {
+    return this.request<{ success: boolean; latency_ms?: number; message?: string }>('/ai/test', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    });
+  }
+
   async testAIPlayground(message: string) {
-    return this.request<{ reply: string }>(
-      '/ai/playground',
-      {
-        method: 'POST',
-        body: JSON.stringify({ message }),
-      }
-    );
+    return this.sendAIPlayground([{ role: 'user', content: message }]);
+  }
+
+  async sendAIPlayground(messages: Array<{ role: 'user' | 'assistant'; content: string }>) {
+    return this.request<{ reply: string; handoff?: boolean }>('/ai/playground', {
+      method: 'POST',
+      body: JSON.stringify({ messages }),
+    });
+  }
+
+  async getAIKnowledge() {
+    return this.request<{
+      documents: Array<{
+        id: string;
+        title: string;
+        updated_at: string;
+        content?: string;
+      }>;
+    }>('/ai/knowledge', { method: 'GET' });
+  }
+
+  async createAIKnowledge(title: string, content: string) {
+    return this.request<{ success: boolean; id: string; warning?: string }>('/ai/knowledge', {
+      method: 'POST',
+      body: JSON.stringify({ title, content }),
+    });
+  }
+
+  async updateAIKnowledge(id: string, title: string, content: string) {
+    return this.request<{ success: boolean; warning?: string }>(`/ai/knowledge/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ title, content }),
+    });
+  }
+
+  async deleteAIKnowledge(id: string) {
+    return this.request<{ success: boolean }>(`/ai/knowledge/${id}`, {
+      method: 'DELETE',
+    });
+  }
+
+  async getAIUsage(days = 30) {
+    return this.request<{
+      window_days: number;
+      truncated: boolean;
+      totals: {
+        calls: number;
+        prompt_tokens: number;
+        completion_tokens: number;
+        total_tokens: number;
+      };
+      by_mode: {
+        auto_reply: { calls: number; tokens: number };
+        draft: { calls: number; tokens: number };
+      };
+      by_model: Array<{
+        model: string;
+        provider: string;
+        calls: number;
+        tokens: number;
+      }>;
+      daily: Array<{
+        date: string;
+        tokens: number;
+        calls: number;
+      }>;
+    }>(`/ai/usage?days=${days}`, { method: 'GET' });
+  }
+
+  // FLOWS API (matches web project /api/flows)
+  async getFlows() {
+    return this.request<{ flows: any[] }>('/flows', { method: 'GET' });
+  }
+
+  async getFlowTemplates() {
+    return this.request<{
+      templates: Array<{
+        slug: string;
+        name: string;
+        description: string;
+        icon: string;
+        trigger_type: string;
+        node_count: number;
+      }>;
+    }>('/flows/templates', { method: 'GET' });
+  }
+
+  async createFlow(body: {
+    name?: string;
+    description?: string;
+    trigger_type?: string;
+    trigger_config?: any;
+    template_slug?: string;
+  }) {
+    return this.request<{ flow: any }>('/flows', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    });
+  }
+
+  async deleteFlow(id: string) {
+    return this.request<{ success: boolean }>(`/flows/${id}`, {
+      method: 'DELETE',
+    });
+  }
+
+  async activateFlow(id: string, status: 'active' | 'draft' | 'archived') {
+    return this.request<{ success: boolean; status: string }>(`/flows/${id}/activate`, {
+      method: 'POST',
+      body: JSON.stringify({ status }),
+    });
   }
 
   // SCREEN 14: TEAM MEMBERS & ROLES

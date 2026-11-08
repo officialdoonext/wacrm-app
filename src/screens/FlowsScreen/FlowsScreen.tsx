@@ -631,29 +631,35 @@ export const FlowsScreen: React.FC<FlowsScreenProps> = ({
         <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
             <StatusBar barStyle="dark-content" />
 
-            {/* Top Navigation Bar */}
+            {/* Top Navigation Bar - Standard Universal AppHeader matching all screens */}
             <AppHeader
-                title="Flows"
-                subtitle="Visual conversational flows triggered by incoming customer messages."
-                onBack={onBack}
                 onPressDashboard={onOpenDashboard}
                 onPressNotifications={onOpenNotifications}
                 onPressProfile={onOpenProfile || (() => onNavigateTab && onNavigateTab('More'))}
-                rightElement={
-                    <View style={styles.headerRightContainer}>
+                unreadCount={0}
+            />
+
+            {/* Page Sub-Header with Title, Beta tag & New Flow action */}
+            <View style={styles.pageSubHeader}>
+                <View style={styles.pageSubHeaderLeft}>
+                    <View style={styles.titleRow}>
+                        <Text style={styles.pageTitle}>Flows</Text>
                         <View style={styles.betaBadge}>
                             <Text style={styles.betaText}>Beta</Text>
                         </View>
-                        <TouchableOpacity
-                            style={styles.newFlowHeaderBtn}
-                            activeOpacity={0.85}
-                            onPress={() => setCreateModalOpen(true)}>
-                            <PlusIcon size={14} color="#FFFFFF" />
-                            <Text style={styles.newFlowHeaderBtnText}>New Flow</Text>
-                        </TouchableOpacity>
                     </View>
-                }
-            />
+                    <Text style={styles.pageSubtitle} numberOfLines={2}>
+                        Visual conversational flows triggered by incoming customer messages.
+                    </Text>
+                </View>
+                <TouchableOpacity
+                    style={styles.newFlowHeaderBtn}
+                    activeOpacity={0.85}
+                    onPress={() => setCreateModalOpen(true)}>
+                    <PlusIcon size={14} color="#FFFFFF" />
+                    <Text style={styles.newFlowHeaderBtnText}>New Flow</Text>
+                </TouchableOpacity>
+            </View>
 
             {/* Filter Tabs & Search Bar */}
             <View style={styles.filterSection}>
@@ -1794,6 +1800,37 @@ const styles = StyleSheet.create({
     safeArea: {
         flex: 1,
         backgroundColor: '#F8FAFC',
+    },
+    pageSubHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        paddingHorizontal: 16,
+        paddingTop: 10,
+        paddingBottom: 10,
+        backgroundColor: '#FFFFFF',
+        borderBottomWidth: 1,
+        borderBottomColor: '#F1F5F9',
+    },
+    pageSubHeaderLeft: {
+        flex: 1,
+        marginRight: 12,
+    },
+    titleRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+        marginBottom: 2,
+    },
+    pageTitle: {
+        fontSize: 20,
+        fontWeight: '700',
+        color: '#0F172A',
+    },
+    pageSubtitle: {
+        fontSize: 12,
+        color: '#64748B',
+        lineHeight: 16,
     },
     headerRightContainer: {
         flexDirection: 'row',
