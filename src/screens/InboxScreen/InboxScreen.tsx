@@ -158,19 +158,21 @@ export const InboxScreen: React.FC<InboxScreenProps> = ({
         }
     }, [isLoadingMore, hasMore, isLoading, refreshing, searchText, page]);
 
+    // Initial load
     useEffect(() => {
         setIsLoading(true);
         loadConversations();
+    }, [loadConversations]);
 
-        // Subscribe to live Supabase Realtime channel
+    // Subscribe to live Supabase Realtime channel — only once on mount
+    useEffect(() => {
         const unsubscribe = crmService.subscribeToLiveInbox(() => {
             crmService.fetchConversations(true).then(setConversations);
         });
-
         return () => {
             unsubscribe();
         };
-    }, [loadConversations]);
+    }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
     const handleRefresh = () => {
         setRefreshing(true);

@@ -247,47 +247,49 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
         }
     }, [hasMoreOlder, isLoadingOlder, messages, conversationId]);
 
+    // Load messages when conversationId changes
     useEffect(() => {
         isInitialLoadRef.current = true;
         loadMessages();
+    }, [loadMessages]);
 
-        // Supabase Realtime channel subscription
-        if (conversationId) {
-            const unsubscribe = crmService.subscribeToLiveChat(
-                conversationId,
-                (newMsg) => {
-                    setMessages((prev) => {
-                        // Check if this incoming message matches an optimistic or existing record
-                        const exists = prev.some((m) => m.id === newMsg.id);
-                        if (exists) return prev;
+    // Supabase Realtime channel subscription — only re-run when conversationId changes
+    useEffect(() => {
+        if (!conversationId) return;
+        const unsubscribe = crmService.subscribeToLiveChat(
+            conversationId,
+            (newMsg) => {
+                setMessages((prev) => {
+                    // Check if this incoming message matches an optimistic or existing record
+                    const exists = prev.some((m) => m.id === newMsg.id);
+                    if (exists) return prev;
 
-                        const optIdx = prev.findIndex(
-                            (m) =>
-                                m.id.startsWith('opt-') &&
-                                (m.content_text || '').trim() === (newMsg.content_text || '').trim()
-                        );
-                        if (optIdx >= 0) {
-                            const updated = [...prev];
-                            updated[optIdx] = newMsg;
-                            return updated;
-                        }
-                        return [...prev, newMsg];
-                    });
-                },
-                (updatedMsg) => {
-                    setMessages((prev) =>
-                        prev.map((m) =>
-                            m.id === updatedMsg.id ? { ...m, status: updatedMsg.status } : m
-                        )
+                    const optIdx = prev.findIndex(
+                        (m) =>
+                            m.id.startsWith('opt-') &&
+                            (m.content_text || '').trim() === (newMsg.content_text || '').trim()
                     );
-                }
-            );
+                    if (optIdx >= 0) {
+                        const updated = [...prev];
+                        updated[optIdx] = newMsg;
+                        return updated;
+                    }
+                    return [...prev, newMsg];
+                });
+            },
+            (updatedMsg) => {
+                setMessages((prev) =>
+                    prev.map((m) =>
+                        m.id === updatedMsg.id ? { ...m, status: updatedMsg.status } : m
+                    )
+                );
+            }
+        );
 
-            return () => {
-                unsubscribe();
-            };
-        }
-    }, [conversationId, loadMessages]);
+        return () => {
+            unsubscribe();
+        };
+    }, [conversationId]); // eslint-disable-line react-hooks/exhaustive-deps
 
     // Scroll to bottom when messages count changes, EXCEPT when prepending older messages
     useEffect(() => {
