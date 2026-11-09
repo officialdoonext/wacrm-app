@@ -1323,7 +1323,7 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
             {/* Main Chat Messages & Composer */}
             <KeyboardAvoidingView
                 style={{ flex: 1 }}
-                behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+                behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
                 keyboardVerticalOffset={Platform.OS === 'ios' ? 88 : 0}>
                 <View style={localStyles.chatContainer}>
                     {/* Message Stream */}

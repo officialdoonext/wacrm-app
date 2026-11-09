@@ -10,6 +10,8 @@ import {
     TextInput,
     ActivityIndicator,
     StyleSheet,
+    Platform,
+    KeyboardAvoidingView,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { styles } from './styles';
@@ -613,112 +615,120 @@ export const MoreScreen: React.FC<MoreScreenProps> = ({
 
             {/* Smooth Modal: WhatsApp Cloud API Credentials */}
             <SmoothModal visible={whatsappConfigModalVisible} onClose={() => setWhatsappConfigModalVisible(false)}>
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
-                    <Text style={{ fontSize: 17, fontWeight: '700', color: '#0F172A' }}>WhatsApp Cloud API Setup</Text>
-                    <TouchableOpacity onPress={() => setWhatsappConfigModalVisible(false)}>
-                        <IconClose size={18} color="#64748B" />
+                <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 8 }}>
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+                        <Text style={{ fontSize: 17, fontWeight: '700', color: '#0F172A' }}>WhatsApp Cloud API Setup</Text>
+                        <TouchableOpacity onPress={() => setWhatsappConfigModalVisible(false)}>
+                            <IconClose size={18} color="#64748B" />
+                        </TouchableOpacity>
+                    </View>
+
+                    <Text style={{ fontSize: 12, fontWeight: '700', color: '#475569', marginBottom: 4 }}>Phone Number ID (Meta)</Text>
+                    <TextInput
+                        style={[styles.modalInput, { backgroundColor: '#F8FAFC', padding: 10, borderRadius: 8, borderWidth: 1, borderColor: '#CBD5E1', marginBottom: 10 }]}
+                        value={phoneId}
+                        onChangeText={setPhoneId}
+                        returnKeyType="next"
+                    />
+
+                    <Text style={{ fontSize: 12, fontWeight: '700', color: '#475569', marginBottom: 4 }}>WABA ID (WhatsApp Business Account)</Text>
+                    <TextInput
+                        style={[styles.modalInput, { backgroundColor: '#F8FAFC', padding: 10, borderRadius: 8, borderWidth: 1, borderColor: '#CBD5E1', marginBottom: 10 }]}
+                        value={wabaId}
+                        onChangeText={setWabaId}
+                        returnKeyType="next"
+                    />
+
+                    <Text style={{ fontSize: 12, fontWeight: '700', color: '#475569', marginBottom: 4 }}>Permanent System User Token</Text>
+                    <TextInput
+                        style={[styles.modalInput, { backgroundColor: '#F8FAFC', padding: 10, borderRadius: 8, borderWidth: 1, borderColor: '#CBD5E1', marginBottom: 10 }]}
+                        value={accessToken}
+                        onChangeText={setAccessToken}
+                        secureTextEntry={true}
+                        returnKeyType="next"
+                    />
+
+                    <Text style={{ fontSize: 12, fontWeight: '700', color: '#475569', marginBottom: 4 }}>Webhook Callback URL</Text>
+                    <TextInput
+                        style={[styles.modalInput, { backgroundColor: '#F1F5F9', padding: 10, borderRadius: 8, borderWidth: 1, borderColor: '#CBD5E1', color: '#475569', marginBottom: 16 }]}
+                        value="https://autonext.doonext.app/api/whatsapp/webhook"
+                        editable={false}
+                    />
+
+                    <TouchableOpacity
+                        style={{ backgroundColor: Colors.whatsappGreen, borderRadius: 10, paddingVertical: 14, alignItems: 'center' }}
+                        disabled={isTestingWa}
+                        onPress={handleTestWhatsAppConnection}>
+                        {isTestingWa ? (
+                            <ActivityIndicator color="#FFFFFF" size="small" />
+                        ) : (
+                            <Text style={{ color: '#FFFFFF', fontWeight: '700', fontSize: 14 }}>
+                                Test Connection & Register Number
+                            </Text>
+                        )}
                     </TouchableOpacity>
-                </View>
-
-                <Text style={{ fontSize: 12, fontWeight: '700', color: '#475569', marginBottom: 4 }}>Phone Number ID (Meta)</Text>
-                <TextInput
-                    style={[styles.modalInput, { backgroundColor: '#F8FAFC', padding: 10, borderRadius: 8, borderWidth: 1, borderColor: '#CBD5E1', marginBottom: 10 }]}
-                    value={phoneId}
-                    onChangeText={setPhoneId}
-                />
-
-                <Text style={{ fontSize: 12, fontWeight: '700', color: '#475569', marginBottom: 4 }}>WABA ID (WhatsApp Business Account)</Text>
-                <TextInput
-                    style={[styles.modalInput, { backgroundColor: '#F8FAFC', padding: 10, borderRadius: 8, borderWidth: 1, borderColor: '#CBD5E1', marginBottom: 10 }]}
-                    value={wabaId}
-                    onChangeText={setWabaId}
-                />
-
-                <Text style={{ fontSize: 12, fontWeight: '700', color: '#475569', marginBottom: 4 }}>Permanent System User Token</Text>
-                <TextInput
-                    style={[styles.modalInput, { backgroundColor: '#F8FAFC', padding: 10, borderRadius: 8, borderWidth: 1, borderColor: '#CBD5E1', marginBottom: 10 }]}
-                    value={accessToken}
-                    onChangeText={setAccessToken}
-                    secureTextEntry={true}
-                />
-
-                <Text style={{ fontSize: 12, fontWeight: '700', color: '#475569', marginBottom: 4 }}>Webhook Callback URL</Text>
-                <TextInput
-                    style={[styles.modalInput, { backgroundColor: '#F1F5F9', padding: 10, borderRadius: 8, borderWidth: 1, borderColor: '#CBD5E1', color: '#475569', marginBottom: 16 }]}
-                    value="https://autonext.doonext.app/api/whatsapp/webhook"
-                    editable={false}
-                />
-
-                <TouchableOpacity
-                    style={{ backgroundColor: Colors.whatsappGreen, borderRadius: 10, paddingVertical: 14, alignItems: 'center' }}
-                    disabled={isTestingWa}
-                    onPress={handleTestWhatsAppConnection}>
-                    {isTestingWa ? (
-                        <ActivityIndicator color="#FFFFFF" size="small" />
-                    ) : (
-                        <Text style={{ color: '#FFFFFF', fontWeight: '700', fontSize: 14 }}>
-                            Test Connection & Register Number
-                        </Text>
-                    )}
-                </TouchableOpacity>
+                </ScrollView>
             </SmoothModal>
 
             {/* Smooth Modal: Team Members & Invite */}
             <SmoothModal visible={teamModalVisible} onClose={() => setTeamModalVisible(false)}>
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
-                    <Text style={{ fontSize: 17, fontWeight: '700', color: '#0F172A' }}>Invite New Team Member</Text>
-                    <TouchableOpacity onPress={() => setTeamModalVisible(false)}>
-                        <IconClose size={18} color="#64748B" />
-                    </TouchableOpacity>
-                </View>
-
-                <Text style={{ fontSize: 12, color: '#64748B', marginBottom: 12 }}>
-                    Invite an agent or administrator to collaborate in your shared WhatsApp inbox.
-                </Text>
-
-                <TextInput
-                    style={[styles.modalInput, { backgroundColor: '#F8FAFC', padding: 10, borderRadius: 8, borderWidth: 1, borderColor: '#CBD5E1', marginBottom: 12 }]}
-                    placeholder="colleague@company.com"
-                    value={inviteEmail}
-                    onChangeText={setInviteEmail}
-                    keyboardType="email-address"
-                    autoCapitalize="none"
-                />
-
-                <Text style={{ fontSize: 12, fontWeight: '700', color: '#475569', marginBottom: 6 }}>Assign Role</Text>
-                <View style={{ flexDirection: 'row', gap: 8, marginBottom: 16 }}>
-                    {(['agent', 'admin', 'viewer'] as const).map((r) => (
-                        <TouchableOpacity
-                            key={r}
-                            style={{
-                                flex: 1,
-                                backgroundColor: inviteRole === r ? '#DCFCE7' : '#F1F5F9',
-                                borderWidth: 1,
-                                borderColor: inviteRole === r ? Colors.whatsappGreen : '#CBD5E1',
-                                borderRadius: 8,
-                                paddingVertical: 10,
-                                alignItems: 'center',
-                            }}
-                            onPress={() => setInviteRole(r)}>
-                            <Text style={{ fontWeight: '700', fontSize: 12, color: inviteRole === r ? '#166534' : '#475569' }}>
-                                {r.toUpperCase()}
-                            </Text>
+                <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 8 }}>
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+                        <Text style={{ fontSize: 17, fontWeight: '700', color: '#0F172A' }}>Invite New Team Member</Text>
+                        <TouchableOpacity onPress={() => setTeamModalVisible(false)}>
+                            <IconClose size={18} color="#64748B" />
                         </TouchableOpacity>
-                    ))}
-                </View>
+                    </View>
 
-                <TouchableOpacity
-                    style={{ backgroundColor: Colors.whatsappGreen, borderRadius: 10, paddingVertical: 14, alignItems: 'center' }}
-                    disabled={isInviting}
-                    onPress={handleSendInvite}>
-                    {isInviting ? (
-                        <ActivityIndicator color="#FFFFFF" size="small" />
-                    ) : (
-                        <Text style={{ color: '#FFFFFF', fontWeight: '700', fontSize: 14 }}>
-                            Generate & Dispatch Invite Link
-                        </Text>
-                    )}
-                </TouchableOpacity>
+                    <Text style={{ fontSize: 12, color: '#64748B', marginBottom: 12 }}>
+                        Invite an agent or administrator to collaborate in your shared WhatsApp inbox.
+                    </Text>
+
+                    <TextInput
+                        style={[styles.modalInput, { backgroundColor: '#F8FAFC', padding: 10, borderRadius: 8, borderWidth: 1, borderColor: '#CBD5E1', marginBottom: 12 }]}
+                        placeholder="colleague@company.com"
+                        value={inviteEmail}
+                        onChangeText={setInviteEmail}
+                        keyboardType="email-address"
+                        autoCapitalize="none"
+                        returnKeyType="done"
+                    />
+
+                    <Text style={{ fontSize: 12, fontWeight: '700', color: '#475569', marginBottom: 6 }}>Assign Role</Text>
+                    <View style={{ flexDirection: 'row', gap: 8, marginBottom: 16 }}>
+                        {(['agent', 'admin', 'viewer'] as const).map((r) => (
+                            <TouchableOpacity
+                                key={r}
+                                style={{
+                                    flex: 1,
+                                    backgroundColor: inviteRole === r ? '#DCFCE7' : '#F1F5F9',
+                                    borderWidth: 1,
+                                    borderColor: inviteRole === r ? Colors.whatsappGreen : '#CBD5E1',
+                                    borderRadius: 8,
+                                    paddingVertical: 10,
+                                    alignItems: 'center',
+                                }}
+                                onPress={() => setInviteRole(r)}>
+                                <Text style={{ fontWeight: '700', fontSize: 12, color: inviteRole === r ? '#166534' : '#475569' }}>
+                                    {r.toUpperCase()}
+                                </Text>
+                            </TouchableOpacity>
+                        ))}
+                    </View>
+
+                    <TouchableOpacity
+                        style={{ backgroundColor: Colors.whatsappGreen, borderRadius: 10, paddingVertical: 14, alignItems: 'center' }}
+                        disabled={isInviting}
+                        onPress={handleSendInvite}>
+                        {isInviting ? (
+                            <ActivityIndicator color="#FFFFFF" size="small" />
+                        ) : (
+                            <Text style={{ color: '#FFFFFF', fontWeight: '700', fontSize: 14 }}>
+                                Generate & Dispatch Invite Link
+                            </Text>
+                        )}
+                    </TouchableOpacity>
+                </ScrollView>
             </SmoothModal>
 
             {/* Smooth Modal: Meta Templates Manager */}
