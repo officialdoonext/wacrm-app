@@ -34,6 +34,8 @@ export interface DynamicMessage {
   status: 'sending' | 'sent' | 'delivered' | 'read' | 'failed';
   created_at: string;
   reply_to_message_id?: string;
+  template_name?: string;
+  interactive_payload?: any;
 }
 
 export type AutomationTriggerType =
@@ -425,6 +427,8 @@ class CRMService {
             status: m.status === 'sent' ? 'delivered' : (m.status || 'delivered'),
             created_at: m.created_at,
             reply_to_message_id: m.reply_to_message_id,
+            template_name: m.template_name,
+            interactive_payload: m.interactive_payload,
           }));
 
           if (beforeTimestamp) {
@@ -476,8 +480,24 @@ class CRMService {
     mediaUrl?: string;
     replyToMessageId?: string;
     optimisticId?: string;
+    templateName?: string;
+    templateLanguage?: string;
+    templateParams?: string[];
+    interactivePayload?: any;
   }): Promise<DynamicMessage> {
-    const { conversationId, contactId, text, messageType = 'text', mediaUrl, replyToMessageId, optimisticId: providedOptId } = params;
+    const {
+      conversationId,
+      contactId,
+      text,
+      messageType = 'text',
+      mediaUrl,
+      replyToMessageId,
+      optimisticId: providedOptId,
+      templateName,
+      templateLanguage,
+      templateParams,
+      interactivePayload,
+    } = params;
 
     const user = await authService.getCurrentUser();
     const profile = await authService.getProfile();
@@ -494,6 +514,8 @@ class CRMService {
       status: 'sending',
       created_at: new Date().toISOString(),
       reply_to_message_id: replyToMessageId,
+      template_name: templateName,
+      interactive_payload: interactivePayload,
     };
 
     if (!messagesCache[conversationId]) {
@@ -521,6 +543,8 @@ class CRMService {
         media_url: mediaUrl || null,
         status: 'delivered',
         reply_to_message_id: replyToMessageId || null,
+        template_name: templateName || null,
+        interactive_payload: interactivePayload || null,
       };
       if (profile?.account_id) {
         insertRow.account_id = profile.account_id;
@@ -553,6 +577,10 @@ class CRMService {
         content_text: text,
         media_url: mediaUrl,
         reply_to_message_id: replyToMessageId,
+        template_name: templateName,
+        template_language: templateLanguage,
+        template_params: templateParams,
+        interactive_payload: interactivePayload,
       };
       backendApi.sendWhatsAppMessage(payload).catch((e) => {
         console.log('Background WhatsApp delivery note:', e?.message);
@@ -569,6 +597,8 @@ class CRMService {
         status: 'delivered',
         created_at: dbMsg?.created_at || optimisticMsg.created_at,
         reply_to_message_id: replyToMessageId,
+        template_name: templateName,
+        interactive_payload: interactivePayload,
       };
 
       // Replace optimistic msg with confirmed delivered record

@@ -17,6 +17,7 @@ import {
     PermissionsAndroid,
     Alert,
     NativeModules,
+    Dimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Colors } from '../../theme/colors';
@@ -54,10 +55,17 @@ import {
     IconCheck,
     IconSmile,
     IconVideo,
+    IconSearch,
+    IconRefresh,
+    IconChevronRight,
+    IconPlus,
+    IconCheckCircle,
+    IconBox,
 } from '../../components/AppIcons';
 import { SmoothModal } from '../../components/SmoothModal';
-import { crmService, DynamicMessage } from '../../services/crmService';
-import { backendApi } from '../../services/api';
+import { crmService, DynamicMessage, MessageTemplateItem } from '../../services/crmService';
+import { backendApi, CatalogProduct, QuickReplyItem } from '../../services/api';
+import { supabase } from '../../services/supabase';
 
 export interface ChatParticipant {
     id?: string;
@@ -95,6 +103,142 @@ const EMOJI_SETS: Record<string, string[]> = {
     ],
 };
 
+const { height: SCREEN_HEIGHT } = Dimensions.get('window');
+
+const DEFAULT_PREAPPROVED_TEMPLATES: MessageTemplateItem[] = [
+    {
+        id: 'tpl_welcome_offer',
+        name: 'festive_welcome_offer',
+        category: 'Marketing',
+        language: 'en_US',
+        body_text: 'Hi {{1}}, welcome! Enjoy an exclusive 20% discount on your next order with code {{2}}. Reply to this message to redeem.',
+        status: 'APPROVED',
+        created_at: new Date().toISOString(),
+    },
+    {
+        id: 'tpl_order_update',
+        name: 'order_status_update',
+        category: 'Utility',
+        language: 'en_US',
+        body_text: 'Hello {{1}}, your order #{{2}} has been confirmed and scheduled for dispatch. We will share live tracking shortly.',
+        status: 'APPROVED',
+        created_at: new Date().toISOString(),
+    },
+    {
+        id: 'tpl_payment_reminder',
+        name: 'invoice_payment_reminder',
+        category: 'Utility',
+        language: 'en_US',
+        body_text: 'Dear {{1}}, this is a friendly reminder that invoice #{{2}} is due for payment. Please reach out if you have questions.',
+        status: 'APPROVED',
+        created_at: new Date().toISOString(),
+    },
+    {
+        id: 'tpl_vip_reengage',
+        name: 'vip_customer_reengagement',
+        category: 'Marketing',
+        language: 'en_US',
+        body_text: 'Dear {{1}}, we have reserved your priority consultation session for {{2}}. Reply YES to confirm your booking.',
+        status: 'APPROVED',
+        created_at: new Date().toISOString(),
+    },
+    {
+        id: 'tpl_appointment_reminder',
+        name: 'appointment_reminder',
+        category: 'Utility',
+        language: 'en_US',
+        body_text: 'Hi {{1}}, your scheduled consultation is set for {{2}}. Please let us know if you need to reschedule.',
+        status: 'APPROVED',
+        created_at: new Date().toISOString(),
+    },
+];
+
+const DEFAULT_CATALOG_ITEMS: CatalogProduct[] = [
+    {
+        id: 'prod-wacrm-pro',
+        retailer_id: 'WACRM-PRO',
+        name: 'WhatsApp CRM Pro Suite',
+        description: 'Multi-agent shared team inbox with automated broadcasting & CRM pipelines.',
+        price: 49.00,
+        currency: 'USD',
+        image_url: 'https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=600',
+        availability: 'in stock',
+        category: 'Software',
+    },
+    {
+        id: 'prod-ai-copilot',
+        retailer_id: 'AI-COPILOT',
+        name: 'AI Agent & Bot Auto-Reply',
+        description: '24/7 AI chatbot copilot powered by Claude & OpenAI for WhatsApp CRM.',
+        price: 29.00,
+        currency: 'USD',
+        image_url: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=600',
+        availability: 'in stock',
+        category: 'AI & Automation',
+    },
+    {
+        id: 'prod-enterprise-api',
+        retailer_id: 'ENT-API',
+        name: 'Enterprise Cloud API License',
+        description: 'Official Meta Graph API direct gateway with unlimited messaging limits.',
+        price: 149.00,
+        currency: 'USD',
+        image_url: 'https://images.unsplash.com/photo-1460925895917-afdab827c52f?w=600',
+        availability: 'in stock',
+        category: 'Enterprise',
+    },
+    {
+        id: 'prod-setup-onboarding',
+        retailer_id: 'VIP-ONBOARD',
+        name: 'VIP Setup & Team Onboarding',
+        description: 'Dedicated account manager WhatsApp setup, template approval, and staff training.',
+        price: 99.00,
+        currency: 'USD',
+        image_url: 'https://images.unsplash.com/photo-1522071820081-009f0129c71c?w=600',
+        availability: 'in stock',
+        category: 'Services',
+    },
+];
+
+const DEFAULT_QUICK_REPLY_ITEMS: QuickReplyItem[] = [
+    {
+        id: 'qr-hours',
+        title: 'Business Hours',
+        content_text: 'Our business hours are Monday through Friday, 9:00 AM to 7:00 PM EST.',
+        category: '/hours',
+    },
+    {
+        id: 'qr-pricing',
+        title: 'Pricing & Plans',
+        content_text: 'Our WhatsApp CRM plans start at $49/mo with full broadcasting & multi-agent team inbox.',
+        category: '/pricing',
+    },
+    {
+        id: 'qr-payment',
+        title: 'Payment Methods',
+        content_text: 'You can complete your order securely via Card, UPI, or Stripe.',
+        category: '/payment',
+    },
+    {
+        id: 'qr-support',
+        title: '24/7 Support Desk',
+        content_text: 'Our support team is available 24/7. An agent will respond shortly.',
+        category: '/support',
+    },
+    {
+        id: 'qr-catalog',
+        title: 'WhatsApp Catalog',
+        content_text: 'Please check our WhatsApp product catalog to view our latest packages and live offers.',
+        category: '/catalog',
+    },
+    {
+        id: 'qr-location',
+        title: 'Office Location',
+        content_text: 'Our office is located at 123 Business Way, Suite 400. Open Monday through Saturday.',
+        category: '/location',
+    },
+];
+
 interface ChatScreenProps {
     participant?: ChatParticipant;
     onBack: () => void;
@@ -120,7 +264,6 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
 
     // Smooth Bottom Sheets
     const [attachmentModalVisible, setAttachmentModalVisible] = useState(false);
-    const [templateModalVisible, setTemplateModalVisible] = useState(false);
     const [crmDrawerVisible, setCrmDrawerVisible] = useState(false);
     const [quickRepliesVisible, setQuickRepliesVisible] = useState(false);
     const [interactiveModalVisible, setInteractiveModalVisible] = useState(false);
@@ -155,10 +298,32 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
     const [emojiPickerVisible, setEmojiPickerVisible] = useState(false);
     const [activeEmojiCategory, setActiveEmojiCategory] = useState<'Smileys' | 'Gestures' | 'Hearts' | 'Work'>('Smileys');
 
-    // Template Picker
-    const [selectedTemplateName, setSelectedTemplateName] = useState('welcome_offer');
-    const [templateVar1, setTemplateVar1] = useState(participant.name || 'Valued Customer');
-    const [templateVar2, setTemplateVar2] = useState('OFFER20');
+    // Catalog State & Modal
+    const [catalogModalVisible, setCatalogModalVisible] = useState(false);
+    const [catalogProducts, setCatalogProducts] = useState<CatalogProduct[]>(DEFAULT_CATALOG_ITEMS);
+    const [catalogLoading, setCatalogLoading] = useState(false);
+    const [catalogSearch, setCatalogSearch] = useState('');
+    const [catalogTab, setCatalogTab] = useState<'single' | 'collection' | 'storefront'>('single');
+    const [selectedCatalogProduct, setSelectedCatalogProduct] = useState<CatalogProduct | null>(DEFAULT_CATALOG_ITEMS[0]);
+    const [selectedCatalogProductIds, setSelectedCatalogProductIds] = useState<string[]>([]);
+    const [catalogCustomBody, setCatalogCustomBody] = useState('');
+    const [catalogCustomFooter, setCatalogCustomFooter] = useState('');
+    const [isSendingCatalog, setIsSendingCatalog] = useState(false);
+
+    // Meta Templates State & Modal
+    const [templateModalVisible, setTemplateModalVisible] = useState(false);
+    const [templatesList, setTemplatesList] = useState<MessageTemplateItem[]>(DEFAULT_PREAPPROVED_TEMPLATES);
+    const [templatesLoading, setTemplatesLoading] = useState(false);
+    const [templateSearch, setTemplateSearch] = useState('');
+    const [templateCategoryFilter, setTemplateCategoryFilter] = useState<'ALL' | 'Marketing' | 'Utility' | 'Authentication'>('ALL');
+    const [activeSelectedTemplate, setActiveSelectedTemplate] = useState<MessageTemplateItem | null>(null);
+    const [templateVarValues, setTemplateVarValues] = useState<Record<string, string>>({});
+    const [isSendingTemplate, setIsSendingTemplate] = useState(false);
+
+    // Quick Replies State & Modal
+    const [quickRepliesList, setQuickRepliesList] = useState<QuickReplyItem[]>(DEFAULT_QUICK_REPLY_ITEMS);
+    const [quickRepliesLoading, setQuickRepliesLoading] = useState(false);
+    const [quickRepliesSearch, setQuickRepliesSearch] = useState('');
 
     // Interactive Buttons
     const [btnPromptText, setBtnPromptText] = useState('Would you like to book a demo or view packages?');
@@ -334,7 +499,11 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
     const handleSend = async (
         customText?: string,
         customType: DynamicMessage['content_type'] = 'text',
-        customMediaUrl?: string
+        customMediaUrl?: string,
+        templateName?: string,
+        templateLanguage?: string,
+        templateParams?: string[],
+        interactivePayload?: any
     ) => {
         const textToSend = (customText !== undefined ? customText : inputText).trim();
         if (!textToSend && !customMediaUrl) return;
@@ -356,6 +525,8 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
             status: 'delivered',
             created_at: new Date().toISOString(),
             reply_to_message_id: replyToId,
+            template_name: templateName,
+            interactive_payload: interactivePayload,
         };
 
         // Immediately append to local state
@@ -373,6 +544,10 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
                 mediaUrl: customMediaUrl,
                 replyToMessageId: replyToId,
                 optimisticId,
+                templateName,
+                templateLanguage,
+                templateParams,
+                interactivePayload,
             });
 
             // Update in place so it NEVER disappears
@@ -613,19 +788,386 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
 
         try {
             const res = await backendApi.getAIDraft(conversationId);
-            if (res.data?.draft) {
-                setInputText(res.data.draft);
+            if (res.data?.draft && res.data.draft.trim().length > 0) {
+                setInputText(res.data.draft.trim());
             } else {
+                const customerFirst = (participant.name || 'there').split(' ')[0];
                 setInputText(
-                    `Hello ${participant.name.split(' ')[0]}! Thanks for contacting us. How can our team help you with your WhatsApp automation today?`
+                    `Hello ${customerFirst}! Thanks for contacting us. I am reviewing your account and will provide full details shortly.`
                 );
             }
         } catch {
+            const customerFirst = (participant.name || 'there').split(' ')[0];
             setInputText(
-                `Hi ${participant.name.split(' ')[0]}, I am reviewing your request and will provide full details shortly!`
+                `Hello ${customerFirst}! Thank you for reaching out. How can our team assist you with your WhatsApp automation today?`
             );
         } finally {
             setIsDraftingAI(false);
+        }
+    };
+
+    // Load Quick Replies
+    const loadQuickReplies = useCallback(async () => {
+        setQuickRepliesLoading(true);
+        try {
+            const res = await backendApi.getQuickReplies();
+            if (res.data?.quick_replies && res.data.quick_replies.length > 0) {
+                setQuickRepliesList(res.data.quick_replies);
+            } else {
+                const { data } = await supabase
+                    .from('quick_replies')
+                    .select('*')
+                    .order('created_at', { ascending: false });
+                if (data && data.length > 0) {
+                    setQuickRepliesList(
+                        data.map((q: any) => ({
+                            id: q.id,
+                            title: q.title,
+                            content_text: q.content_text || '',
+                            category: q.kind || 'text',
+                        }))
+                    );
+                } else {
+                    setQuickRepliesList([
+                        {
+                            id: 'qr-hours',
+                            title: 'Business Hours',
+                            content_text: 'Our business hours are Monday through Friday, 9:00 AM to 7:00 PM EST.',
+                            category: '/hours',
+                        },
+                        {
+                            id: 'qr-pricing',
+                            title: 'Pricing & Plans',
+                            content_text: 'Our WhatsApp CRM plans start at $49/mo with full broadcasting & multi-agent team inbox.',
+                            category: '/pricing',
+                        },
+                        {
+                            id: 'qr-payment',
+                            title: 'Payment Methods',
+                            content_text: 'You can complete your order securely via Card, UPI, or Stripe.',
+                            category: '/payment',
+                        },
+                        {
+                            id: 'qr-support',
+                            title: '24/7 Support Desk',
+                            content_text: 'Our support team is available 24/7. An agent will respond shortly.',
+                            category: '/support',
+                        },
+                        {
+                            id: 'qr-catalog',
+                            title: 'WhatsApp Catalog',
+                            content_text: 'Please check our WhatsApp product catalog to view our latest packages and live offers.',
+                            category: '/catalog',
+                        },
+                        {
+                            id: 'qr-location',
+                            title: 'Office Location',
+                            content_text: 'Our office is located at 123 Business Way, Suite 400. Open Monday through Saturday.',
+                            category: '/location',
+                        },
+                    ]);
+                }
+            }
+        } catch {
+            // fallback
+        } finally {
+            setQuickRepliesLoading(false);
+        }
+    }, []);
+
+    const handlePickQuickReply = (qr: QuickReplyItem) => {
+        const textToInsert = qr.content_text;
+        setInputText((prev) => {
+            if (!prev || prev === '/') {
+                return textToInsert;
+            }
+            return prev.trimEnd() + '\n' + textToInsert;
+        });
+        setQuickRepliesVisible(false);
+    };
+
+    // Load Message Templates
+    const loadTemplates = useCallback(async () => {
+        setTemplatesLoading(true);
+        try {
+            const list = await crmService.fetchMessageTemplates();
+            setTemplatesList(list);
+        } catch (err) {
+            console.warn('Failed to load templates:', err);
+        } finally {
+            setTemplatesLoading(false);
+        }
+    }, []);
+
+    const handleSelectTemplate = (template: MessageTemplateItem) => {
+        setActiveSelectedTemplate(template);
+        const matches = Array.from(template.body_text.matchAll(/\{\{(\d+)\}\}/g));
+        const initialVars: Record<string, string> = {};
+        matches.forEach((m) => {
+            const varNum = m[1];
+            if (varNum === '1') {
+                initialVars['1'] = participant.name ? participant.name.split(' ')[0] : 'Valued Customer';
+            } else if (varNum === '2') {
+                initialVars['2'] = template.name.includes('offer') ? 'OFFER20' : template.name.includes('order') ? 'ORD-7890' : 'Confirmed';
+            } else {
+                initialVars[varNum] = '';
+            }
+        });
+        setTemplateVarValues(initialVars);
+    };
+
+    const renderTemplatePreviewText = (body: string, vars: Record<string, string>) => {
+        return body.replace(/\{\{(\d+)\}\}/g, (_, num) => {
+            const val = vars[num];
+            return val && val.trim() ? val : `{{${num}}}`;
+        });
+    };
+
+    const handleSendOfficialTemplate = async () => {
+        if (!activeSelectedTemplate || !conversationId) return;
+        setIsSendingTemplate(true);
+        try {
+            const rendered = renderTemplatePreviewText(activeSelectedTemplate.body_text, templateVarValues);
+            const paramsArray = Object.keys(templateVarValues)
+                .sort((a, b) => Number(a) - Number(b))
+                .map((k) => templateVarValues[k] || '');
+
+            await handleSend(
+                rendered,
+                'template',
+                activeSelectedTemplate.header_media_url || undefined,
+                activeSelectedTemplate.name,
+                activeSelectedTemplate.language || 'en_US',
+                paramsArray
+            );
+
+            setTemplateModalVisible(false);
+            setActiveSelectedTemplate(null);
+        } catch (err: any) {
+            Alert.alert('Send Error', err?.message || 'Failed to dispatch Meta template');
+        } finally {
+            setIsSendingTemplate(false);
+        }
+    };
+
+    // Load Catalog Products
+    const loadCatalogProducts = useCallback(async () => {
+        setCatalogLoading(true);
+        try {
+            const res = await backendApi.getCatalogProducts(100, catalogSearch);
+            if (res.data?.products && res.data.products.length > 0) {
+                setCatalogProducts(res.data.products);
+                setSelectedCatalogProduct((prev) => prev || res.data!.products[0]);
+            } else {
+                const { data } = await supabase
+                    .from('commerce_products')
+                    .select('*')
+                    .order('created_at', { ascending: false });
+                if (data && data.length > 0) {
+                    const mapped: CatalogProduct[] = data.map((p: any) => ({
+                        id: p.id,
+                        retailer_id: p.retailer_id || p.id,
+                        name: p.name,
+                        description: p.description || '',
+                        price: Number(p.price) || 0,
+                        currency: p.currency || 'USD',
+                        image_url: p.image_url || 'https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=600',
+                        availability: p.availability || 'in stock',
+                        category: p.category || 'General',
+                    }));
+                    setCatalogProducts(mapped);
+                    setSelectedCatalogProduct((prev) => prev || mapped[0]);
+                } else {
+                    const fallbackProducts: CatalogProduct[] = [
+                        {
+                            id: 'prod-wacrm-pro',
+                            retailer_id: 'WACRM-PRO',
+                            name: 'WhatsApp CRM Pro Suite',
+                            description: 'Multi-agent shared team inbox with automated broadcasting & CRM pipelines.',
+                            price: 49.00,
+                            currency: 'USD',
+                            image_url: 'https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=600',
+                            availability: 'in stock',
+                            category: 'Software',
+                        },
+                        {
+                            id: 'prod-ai-copilot',
+                            retailer_id: 'AI-COPILOT',
+                            name: 'AI Agent & Bot Auto-Reply',
+                            description: '24/7 AI chatbot copilot powered by Claude & OpenAI for WhatsApp CRM.',
+                            price: 29.00,
+                            currency: 'USD',
+                            image_url: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=600',
+                            availability: 'in stock',
+                            category: 'AI & Automation',
+                        },
+                        {
+                            id: 'prod-enterprise-api',
+                            retailer_id: 'ENT-API',
+                            name: 'Enterprise Cloud API License',
+                            description: 'Official Meta Graph API direct gateway with unlimited messaging limits.',
+                            price: 149.00,
+                            currency: 'USD',
+                            image_url: 'https://images.unsplash.com/photo-1460925895917-afdab827c52f?w=600',
+                            availability: 'in stock',
+                            category: 'Enterprise',
+                        },
+                        {
+                            id: 'prod-setup-onboarding',
+                            retailer_id: 'VIP-ONBOARD',
+                            name: 'VIP Setup & Team Onboarding',
+                            description: 'Dedicated account manager WhatsApp setup, template approval, and staff training.',
+                            price: 99.00,
+                            currency: 'USD',
+                            image_url: 'https://images.unsplash.com/photo-1522071820081-009f0129c71c?w=600',
+                            availability: 'in stock',
+                            category: 'Services',
+                        },
+                    ];
+                    setCatalogProducts(fallbackProducts);
+                    setSelectedCatalogProduct((prev) => prev || fallbackProducts[0]);
+                }
+            }
+        } catch {
+            // fallback
+        } finally {
+            setCatalogLoading(false);
+        }
+    }, [catalogSearch]);
+
+    // Background prefetch for templates, catalog, and quick replies on mount
+    useEffect(() => {
+        loadTemplates();
+        loadCatalogProducts();
+        loadQuickReplies();
+    }, [loadTemplates, loadCatalogProducts, loadQuickReplies]);
+
+    const handleSendSingleProduct = async () => {
+        if (!selectedCatalogProduct || !conversationId) return;
+        setIsSendingCatalog(true);
+        try {
+            const product = selectedCatalogProduct;
+            const bodyText = catalogCustomBody.trim() || product.description;
+            const footerText = catalogCustomFooter.trim() || 'WhatsApp Commerce Catalog';
+            const symbol = product.currency === 'USD' ? '$' : product.currency === 'INR' ? '₹' : product.currency === 'EUR' ? '€' : product.currency + ' ';
+            const preview = `🛒 ${product.name}\n${symbol}${product.price}\n\n${bodyText}\n\nSKU: ${product.retailer_id}`;
+
+            const payload = {
+                kind: 'product',
+                product_retailer_id: product.retailer_id,
+                product_name: product.name,
+                product_price: product.price,
+                product_currency: product.currency,
+                image_url: product.image_url,
+                body: bodyText,
+                footer: footerText,
+            };
+
+            backendApi.sendCatalogProduct({
+                conversation_id: conversationId,
+                catalog_kind: 'product',
+                product_retailer_id: product.retailer_id,
+                product_name: product.name,
+                product_price: product.price,
+                product_currency: product.currency,
+                body_text: bodyText,
+                footer_text: footerText,
+            }).catch((e) => console.log('Catalog send api note:', e?.message));
+
+            await handleSend(
+                preview,
+                'interactive',
+                product.image_url,
+                undefined,
+                undefined,
+                undefined,
+                payload
+            );
+
+            setCatalogModalVisible(false);
+            setCatalogCustomBody('');
+            setCatalogCustomFooter('');
+        } catch (err: any) {
+            Alert.alert('Send Error', err?.message || 'Failed to send catalog product');
+        } finally {
+            setIsSendingCatalog(false);
+        }
+    };
+
+    const handleSendCollectionProducts = async () => {
+        if (selectedCatalogProductIds.length === 0 || !conversationId) {
+            Alert.alert('Select Products', 'Please select at least 1 product for the collection.');
+            return;
+        }
+        setIsSendingCatalog(true);
+        try {
+            const selected = catalogProducts.filter((p) => selectedCatalogProductIds.includes(p.retailer_id));
+            const bodyText = catalogCustomBody.trim() || 'Browse our curated collection and order directly on WhatsApp.';
+            const itemsList = selected.map((p) => `• ${p.name} (${p.currency} ${p.price})`).join('\n');
+            const preview = `🛍️ Featured Collection (${selected.length} items)\n\n${itemsList}\n\n${bodyText}`;
+
+            backendApi.sendCatalogProduct({
+                conversation_id: conversationId,
+                catalog_kind: 'product_list',
+                header_text: 'Featured Collection',
+                body_text: bodyText,
+                sections: [
+                    {
+                        title: 'Items',
+                        product_retailer_ids: selectedCatalogProductIds,
+                    },
+                ],
+            }).catch(() => {});
+
+            await handleSend(
+                preview,
+                'interactive',
+                selected[0]?.image_url,
+                undefined,
+                undefined,
+                undefined,
+                { kind: 'product_list', count: selected.length, items: selected }
+            );
+
+            setCatalogModalVisible(false);
+            setSelectedCatalogProductIds([]);
+            setCatalogCustomBody('');
+        } catch (err: any) {
+            Alert.alert('Send Error', err?.message || 'Failed to send collection');
+        } finally {
+            setIsSendingCatalog(false);
+        }
+    };
+
+    const handleSendStorefront = async () => {
+        if (!conversationId) return;
+        setIsSendingCatalog(true);
+        try {
+            const bodyText = catalogCustomBody.trim() || 'Explore our full WhatsApp product catalog and place your order directly in chat!';
+            const preview = `🏪 Official WhatsApp Storefront\n\n${bodyText}\n\nTap below to browse all available items.`;
+
+            backendApi.sendCatalogProduct({
+                conversation_id: conversationId,
+                catalog_kind: 'catalog_message',
+                body_text: bodyText,
+            }).catch(() => {});
+
+            await handleSend(
+                preview,
+                'interactive',
+                catalogProducts[0]?.image_url,
+                undefined,
+                undefined,
+                undefined,
+                { kind: 'catalog_message', body: bodyText }
+            );
+
+            setCatalogModalVisible(false);
+            setCatalogCustomBody('');
+        } catch (err: any) {
+            Alert.alert('Send Error', err?.message || 'Failed to send storefront');
+        } finally {
+            setIsSendingCatalog(false);
         }
     };
 
@@ -646,13 +1188,6 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
         setMessageReactions((prev) => ({ ...prev, [reactionTargetId]: reactionKey }));
         setReactionTargetId(null);
         backendApi.reactToMessage(reactionTargetId, reactionKey).catch(() => {});
-    };
-
-    // Dispatch Meta Template
-    const handleSendMetaTemplate = () => {
-        const preview = `Template [${selectedTemplateName}]: Hello ${templateVar1}, use code ${templateVar2} to activate special discount on WhatsApp CRM plans!`;
-        setTemplateModalVisible(false);
-        handleSend(preview, 'template');
     };
 
     // Dispatch Interactive Buttons
@@ -919,20 +1454,38 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
                                             </View>
                                         ) : item.content_type === 'template' ? (
                                             /* 3. Meta Template message */
-                                            <View>
+                                            <View style={{ minWidth: 200 }}>
                                                 <View style={localStyles.templateBadge}>
                                                     <Text style={localStyles.templateBadgeText}>META VERIFIED TEMPLATE</Text>
                                                 </View>
+                                                {item.template_name ? (
+                                                    <Text style={localStyles.templateNameSubtitle}>{item.template_name}</Text>
+                                                ) : null}
                                                 <Text style={localStyles.bubbleText}>{item.content_text}</Text>
                                                 <View style={localStyles.templateCtaRow}>
                                                     <IconStore size={14} color={Colors.whatsappTeal} />
-                                                    <Text style={localStyles.templateCtaText}>View Details & Offers</Text>
+                                                    <Text style={localStyles.templateCtaText}>Official WhatsApp Template</Text>
                                                 </View>
                                             </View>
                                         ) : item.content_type === 'interactive' ? (
-                                            /* 4. Interactive message */
-                                            <View>
+                                            /* 4. Interactive WhatsApp Message / Catalog Product */
+                                            <View style={{ minWidth: 210 }}>
+                                                {item.media_url ? (
+                                                    <Image
+                                                        source={{ uri: item.media_url }}
+                                                        style={localStyles.catalogBubbleImage}
+                                                        resizeMode="cover"
+                                                    />
+                                                ) : null}
+                                                <View style={localStyles.catalogBadgeRow}>
+                                                    <IconStore size={13} color="#059669" />
+                                                    <Text style={localStyles.catalogBadgeText}>WHATSAPP CATALOG</Text>
+                                                </View>
                                                 <Text style={localStyles.bubbleText}>{item.content_text}</Text>
+                                                <View style={localStyles.catalogCtaBtn}>
+                                                    <IconStore size={14} color="#059669" />
+                                                    <Text style={localStyles.catalogCtaBtnText}>View Item in Catalog</Text>
+                                                </View>
                                             </View>
                                         ) : (
                                             /* 5. Regular text */
@@ -1034,7 +1587,14 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
                         </View>
                     ) : (
                         /* Authentic WhatsApp Bottom Composer */
-                        <View style={localStyles.composerRow}>
+                        <View>
+                            {isDraftingAI && (
+                                <View style={localStyles.aiDraftingBanner}>
+                                    <ActivityIndicator size="small" color="#7C3AED" />
+                                    <Text style={localStyles.aiDraftingBannerText}>AI Copilot is drafting a response...</Text>
+                                </View>
+                            )}
+                            <View style={localStyles.composerRow}>
                             <TouchableOpacity
                                 style={localStyles.attachPlusBtn}
                                 activeOpacity={0.7}
@@ -1106,6 +1666,7 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
                                 )}
                             </TouchableOpacity>
                         </View>
+                    </View>
                     )}
 
                     {/* Curated WhatsApp Emoji Picker Tray */}
@@ -1150,123 +1711,155 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
             </KeyboardAvoidingView>
 
             {/* Smooth Modal: Actions & Attachments */}
-            <SmoothModal visible={attachmentModalVisible} onClose={() => setAttachmentModalVisible(false)}>
+            <SmoothModal
+                visible={attachmentModalVisible}
+                onClose={() => setAttachmentModalVisible(false)}
+                maxHeight={Math.round(SCREEN_HEIGHT * 0.75)}>
                 <Text style={localStyles.modalSheetTitle}>Actions & Attachments</Text>
 
-                <TouchableOpacity
-                    style={localStyles.modalActionRow}
-                    onPress={handlePickPhoto}>
-                    <View style={[localStyles.modalActionIcon, { backgroundColor: '#DCFCE7' }]}>
-                        <IconCamera size={18} color="#059669" />
-                    </View>
-                    <View style={{ flex: 1 }}>
-                        <Text style={localStyles.modalActionTitle}>Photos & Media</Text>
-                        <Text style={localStyles.modalActionSub}>Choose directly from device photo gallery</Text>
-                    </View>
-                </TouchableOpacity>
+                <ScrollView showsVerticalScrollIndicator={false} bounces={false} contentContainerStyle={{ paddingBottom: 16 }}>
+                    <TouchableOpacity
+                        style={localStyles.modalActionRow}
+                        onPress={handlePickPhoto}>
+                        <View style={[localStyles.modalActionIcon, { backgroundColor: '#DCFCE7' }]}>
+                            <IconCamera size={18} color="#059669" />
+                        </View>
+                        <View style={{ flex: 1 }}>
+                            <Text style={localStyles.modalActionTitle}>Photos & Media</Text>
+                            <Text style={localStyles.modalActionSub}>Choose directly from device photo gallery</Text>
+                        </View>
+                    </TouchableOpacity>
 
-                <TouchableOpacity
-                    style={localStyles.modalActionRow}
-                    onPress={handlePickVideo}>
-                    <View style={[localStyles.modalActionIcon, { backgroundColor: '#DBEAFE' }]}>
-                        <IconVideo size={18} color="#1E40AF" />
-                    </View>
-                    <View style={{ flex: 1 }}>
-                        <Text style={localStyles.modalActionTitle}>Video Clip</Text>
-                        <Text style={localStyles.modalActionSub}>Choose video from device files</Text>
-                    </View>
-                </TouchableOpacity>
+                    <TouchableOpacity
+                        style={localStyles.modalActionRow}
+                        onPress={handlePickVideo}>
+                        <View style={[localStyles.modalActionIcon, { backgroundColor: '#DBEAFE' }]}>
+                            <IconVideo size={18} color="#1E40AF" />
+                        </View>
+                        <View style={{ flex: 1 }}>
+                            <Text style={localStyles.modalActionTitle}>Video Clip</Text>
+                            <Text style={localStyles.modalActionSub}>Choose video from device files</Text>
+                        </View>
+                    </TouchableOpacity>
 
-                <TouchableOpacity
-                    style={localStyles.modalActionRow}
-                    onPress={handlePickDocument}>
-                    <View style={[localStyles.modalActionIcon, { backgroundColor: '#FEE2E2' }]}>
-                        <IconFileText size={18} color="#DC2626" />
-                    </View>
-                    <View style={{ flex: 1 }}>
-                        <Text style={localStyles.modalActionTitle}>Document & PDF</Text>
-                        <Text style={localStyles.modalActionSub}>Select document or invoice from storage</Text>
-                    </View>
-                </TouchableOpacity>
+                    <TouchableOpacity
+                        style={localStyles.modalActionRow}
+                        onPress={handlePickDocument}>
+                        <View style={[localStyles.modalActionIcon, { backgroundColor: '#FEE2E2' }]}>
+                            <IconFileText size={18} color="#DC2626" />
+                        </View>
+                        <View style={{ flex: 1 }}>
+                            <Text style={localStyles.modalActionTitle}>Document & PDF</Text>
+                            <Text style={localStyles.modalActionSub}>Select document or invoice from storage</Text>
+                        </View>
+                    </TouchableOpacity>
 
-                <TouchableOpacity
-                    style={localStyles.modalActionRow}
-                    onPress={() => {
-                        setAttachmentModalVisible(false);
-                        handleStartRecording();
-                    }}>
-                    <View style={[localStyles.modalActionIcon, { backgroundColor: '#FEF3C7' }]}>
-                        <MicIcon size={18} color="#D97706" />
-                    </View>
-                    <View style={{ flex: 1 }}>
-                        <Text style={localStyles.modalActionTitle}>Audio Voice Note</Text>
-                        <Text style={localStyles.modalActionSub}>Record & send live WhatsApp voice note</Text>
-                    </View>
-                </TouchableOpacity>
+                    <TouchableOpacity
+                        style={localStyles.modalActionRow}
+                        onPress={() => {
+                            setAttachmentModalVisible(false);
+                            handleStartRecording();
+                        }}>
+                        <View style={[localStyles.modalActionIcon, { backgroundColor: '#FEF3C7' }]}>
+                            <MicIcon size={18} color="#D97706" />
+                        </View>
+                        <View style={{ flex: 1 }}>
+                            <Text style={localStyles.modalActionTitle}>Audio Voice Note</Text>
+                            <Text style={localStyles.modalActionSub}>Record & send live WhatsApp voice note</Text>
+                        </View>
+                    </TouchableOpacity>
 
-                <TouchableOpacity
-                    style={localStyles.modalActionRow}
-                    onPress={() => {
-                        setAttachmentModalVisible(false);
-                        setTemplateModalVisible(true);
-                    }}>
-                    <View style={[localStyles.modalActionIcon, { backgroundColor: '#EDE9FE' }]}>
-                        <ClipboardIcon size={18} color="#7C3AED" />
-                    </View>
-                    <View style={{ flex: 1 }}>
-                        <Text style={localStyles.modalActionTitle}>Meta Approved Template</Text>
-                        <Text style={localStyles.modalActionSub}>Verified HSM notification template</Text>
-                    </View>
-                </TouchableOpacity>
+                    <TouchableOpacity
+                        style={localStyles.modalActionRow}
+                        onPress={() => {
+                            setAttachmentModalVisible(false);
+                            setActiveSelectedTemplate(null);
+                            setTemplateModalVisible(true);
+                            loadTemplates();
+                        }}>
+                        <View style={[localStyles.modalActionIcon, { backgroundColor: '#EDE9FE' }]}>
+                            <ClipboardIcon size={18} color="#7C3AED" />
+                        </View>
+                        <View style={{ flex: 1 }}>
+                            <Text style={localStyles.modalActionTitle}>Meta Approved Template</Text>
+                            <Text style={localStyles.modalActionSub}>Verified HSM notification template with variables</Text>
+                        </View>
+                    </TouchableOpacity>
 
-                <TouchableOpacity
-                    style={localStyles.modalActionRow}
-                    onPress={() => {
-                        setAttachmentModalVisible(false);
-                        setInteractiveModalVisible(true);
-                    }}>
-                    <View style={[localStyles.modalActionIcon, { backgroundColor: '#FCE7F3' }]}>
-                        <IconStore size={18} color="#BE185D" />
-                    </View>
-                    <View style={{ flex: 1 }}>
-                        <Text style={localStyles.modalActionTitle}>Interactive WhatsApp Buttons</Text>
-                        <Text style={localStyles.modalActionSub}>1-3 action reply buttons for triage</Text>
-                    </View>
-                </TouchableOpacity>
+                    <TouchableOpacity
+                        style={localStyles.modalActionRow}
+                        onPress={() => {
+                            setAttachmentModalVisible(false);
+                            setCatalogModalVisible(true);
+                            loadCatalogProducts();
+                        }}>
+                        <View style={[localStyles.modalActionIcon, { backgroundColor: '#CCFBF1' }]}>
+                            <IconStore size={18} color="#0F766E" />
+                        </View>
+                        <View style={{ flex: 1 }}>
+                            <Text style={localStyles.modalActionTitle}>WhatsApp Commerce Catalog</Text>
+                            <Text style={localStyles.modalActionSub}>Share single product, collections, or storefront</Text>
+                        </View>
+                    </TouchableOpacity>
 
-                <TouchableOpacity
-                    style={localStyles.modalActionRow}
-                    onPress={() => {
-                        setAttachmentModalVisible(false);
-                        handleSend('Enterprise Automation Suite - $499/mo', 'text', 'https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=600');
-                    }}>
-                    <View style={[localStyles.modalActionIcon, { backgroundColor: '#CCFBF1' }]}>
-                        <IconDollar size={18} color="#0F766E" />
-                    </View>
-                    <View style={{ flex: 1 }}>
-                        <Text style={localStyles.modalActionTitle}>Commerce Catalog Products</Text>
-                        <Text style={localStyles.modalActionSub}>Share items from business product inventory</Text>
-                    </View>
-                </TouchableOpacity>
+                    <TouchableOpacity
+                        style={localStyles.modalActionRow}
+                        onPress={() => {
+                            setAttachmentModalVisible(false);
+                            setQuickRepliesVisible(true);
+                            loadQuickReplies();
+                        }}>
+                        <View style={[localStyles.modalActionIcon, { backgroundColor: '#FEF3C7' }]}>
+                            <ZapIcon size={18} color="#D97706" />
+                        </View>
+                        <View style={{ flex: 1 }}>
+                            <Text style={localStyles.modalActionTitle}>Quick Replies Shortcuts (/)</Text>
+                            <Text style={localStyles.modalActionSub}>Canned responses for frequent business questions</Text>
+                        </View>
+                    </TouchableOpacity>
 
-                <TouchableOpacity
-                    style={[localStyles.modalActionRow, { borderBottomWidth: 0 }]}
-                    onPress={() => {
-                        setAttachmentModalVisible(false);
-                        setQuickRepliesVisible(true);
-                    }}>
-                    <View style={[localStyles.modalActionIcon, { backgroundColor: '#E0E7FF' }]}>
-                        <ZapIcon size={18} color="#4338CA" />
-                    </View>
-                    <View style={{ flex: 1 }}>
-                        <Text style={localStyles.modalActionTitle}>Quick Replies Shortcuts (/)</Text>
-                        <Text style={localStyles.modalActionSub}>Canned responses for frequent business questions</Text>
-                    </View>
-                </TouchableOpacity>
+                    <TouchableOpacity
+                        style={localStyles.modalActionRow}
+                        onPress={() => {
+                            setAttachmentModalVisible(false);
+                            handleAIDraft();
+                        }}>
+                        <View style={[localStyles.modalActionIcon, { backgroundColor: '#F5F3FF' }]}>
+                            <IconSparkles size={18} color="#7C3AED" />
+                        </View>
+                        <View style={{ flex: 1 }}>
+                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                                <Text style={localStyles.modalActionTitle}>Reply with AI Copilot</Text>
+                                <View style={localStyles.aiBadgePill}>
+                                    <Text style={localStyles.aiBadgePillText}>AI</Text>
+                                </View>
+                            </View>
+                            <Text style={localStyles.modalActionSub}>Draft intelligent contextual reply based on chat</Text>
+                        </View>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                        style={[localStyles.modalActionRow, { borderBottomWidth: 0 }]}
+                        onPress={() => {
+                            setAttachmentModalVisible(false);
+                            setInteractiveModalVisible(true);
+                        }}>
+                        <View style={[localStyles.modalActionIcon, { backgroundColor: '#FCE7F3' }]}>
+                            <IconChat size={18} color="#BE185D" />
+                        </View>
+                        <View style={{ flex: 1 }}>
+                            <Text style={localStyles.modalActionTitle}>Interactive WhatsApp Buttons</Text>
+                            <Text style={localStyles.modalActionSub}>1-3 action reply buttons for triage</Text>
+                        </View>
+                    </TouchableOpacity>
+                </ScrollView>
             </SmoothModal>
 
             {/* Smooth Modal: Device Picked Media Preview & Confirmation */}
-            <SmoothModal visible={pickedMediaPreviewVisible} onClose={() => setPickedMediaPreviewVisible(false)}>
+            <SmoothModal
+                visible={pickedMediaPreviewVisible}
+                onClose={() => setPickedMediaPreviewVisible(false)}
+                maxHeight={Math.round(SCREEN_HEIGHT * 0.85)}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
                     <Text style={localStyles.modalSheetTitle}>
                         {pickedMediaData?.type === 'image' && 'Send Device Photo'}
@@ -1385,49 +1978,533 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
                 </View>
             </SmoothModal>
 
-            {/* Smooth Modal: Meta Templates */}
-            <SmoothModal visible={templateModalVisible} onClose={() => setTemplateModalVisible(false)}>
-                <Text style={localStyles.modalSheetTitle}>Personalize Meta Template</Text>
+            {/* Smooth Modal: Meta Approved Templates */}
+            <SmoothModal
+                visible={templateModalVisible}
+                onClose={() => setTemplateModalVisible(false)}
+                height={Math.round(SCREEN_HEIGHT * 0.85)}>
+                {!activeSelectedTemplate ? (
+                    <View style={{ flex: 1, height: '100%' }}>
+                        <View style={localStyles.modalHeaderRow}>
+                            <View>
+                                <Text style={localStyles.modalSheetTitle}>Meta Approved Templates</Text>
+                                <Text style={localStyles.modalSheetSub}>Official pre-approved HSM notification templates</Text>
+                            </View>
+                            <TouchableOpacity onPress={() => setTemplateModalVisible(false)} style={localStyles.modalCloseBtn}>
+                                <Text style={localStyles.modalCloseBtnText}>✕</Text>
+                            </TouchableOpacity>
+                        </View>
 
-                <Text style={localStyles.inputLabel}>Template Name</Text>
-                <TextInput style={localStyles.styledInput} value={selectedTemplateName} onChangeText={setSelectedTemplateName} />
+                        {/* Search Bar */}
+                        <View style={localStyles.modalSearchContainer}>
+                            <IconSearch size={16} color="#94A3B8" />
+                            <TextInput
+                                style={localStyles.modalSearchInput}
+                                placeholder="Search templates by name or content..."
+                                placeholderTextColor="#94A3B8"
+                                value={templateSearch}
+                                onChangeText={setTemplateSearch}
+                            />
+                            {!!templateSearch && (
+                                <TouchableOpacity onPress={() => setTemplateSearch('')} style={localStyles.modalClearSearch}>
+                                    <IconClose size={14} color="#94A3B8" />
+                                </TouchableOpacity>
+                            )}
+                        </View>
 
-                <Text style={localStyles.inputLabel}>Placeholder {'{{1}}'} (Customer Name)</Text>
-                <TextInput style={localStyles.styledInput} value={templateVar1} onChangeText={setTemplateVar1} />
+                        {/* Category Filter Chips */}
+                        <View style={localStyles.filterChipsRow}>
+                            {(['ALL', 'Marketing', 'Utility', 'Authentication'] as const).map((cat) => (
+                                <TouchableOpacity
+                                    key={cat}
+                                    style={[
+                                        localStyles.filterChip,
+                                        templateCategoryFilter === cat && localStyles.filterChipActive,
+                                    ]}
+                                    onPress={() => setTemplateCategoryFilter(cat)}>
+                                    <Text
+                                        style={[
+                                            localStyles.filterChipText,
+                                            templateCategoryFilter === cat && localStyles.filterChipTextActive,
+                                        ]}>
+                                        {cat}
+                                    </Text>
+                                </TouchableOpacity>
+                            ))}
+                        </View>
 
-                <Text style={localStyles.inputLabel}>Placeholder {'{{2}}'} (Discount / Promo Code)</Text>
-                <TextInput style={localStyles.styledInput} value={templateVar2} onChangeText={setTemplateVar2} />
+                        {/* Templates List */}
+                        {templatesLoading ? (
+                            <View style={{ paddingVertical: 40, alignItems: 'center' }}>
+                                <ActivityIndicator size="large" color={Colors.whatsappGreen} />
+                                <Text style={{ marginTop: 10, color: '#64748B', fontSize: 13 }}>Loading templates...</Text>
+                            </View>
+                        ) : (
+                            <ScrollView style={{ flex: 1, marginTop: 8 }} keyboardShouldPersistTaps="handled">
+                                {templatesList
+                                    .filter((t) => {
+                                        const matchesSearch =
+                                            t.name.toLowerCase().includes(templateSearch.toLowerCase()) ||
+                                            t.body_text.toLowerCase().includes(templateSearch.toLowerCase());
+                                        const matchesCat =
+                                            templateCategoryFilter === 'ALL' ||
+                                            (t.category && t.category.toLowerCase() === templateCategoryFilter.toLowerCase());
+                                        return matchesSearch && matchesCat;
+                                    })
+                                    .map((t) => (
+                                        <TouchableOpacity
+                                            key={t.id}
+                                            style={localStyles.templateCard}
+                                            activeOpacity={0.7}
+                                            onPress={() => handleSelectTemplate(t)}>
+                                            <View style={localStyles.templateCardHeader}>
+                                                <Text style={localStyles.templateCardName} numberOfLines={1}>
+                                                    {t.name}
+                                                </Text>
+                                                <View style={localStyles.templateBadgeApproved}>
+                                                    <Text style={localStyles.templateBadgeApprovedText}>APPROVED</Text>
+                                                </View>
+                                            </View>
+                                            <View style={{ flexDirection: 'row', gap: 6, marginBottom: 6 }}>
+                                                <View style={localStyles.templateCategoryBadge}>
+                                                    <Text style={localStyles.templateCategoryBadgeText}>{t.category || 'Utility'}</Text>
+                                                </View>
+                                                <View style={[localStyles.templateCategoryBadge, { backgroundColor: '#F1F5F9' }]}>
+                                                    <Text style={[localStyles.templateCategoryBadgeText, { color: '#64748B' }]}>{t.language || 'en_US'}</Text>
+                                                </View>
+                                            </View>
+                                            <Text style={localStyles.templateCardBody} numberOfLines={3}>
+                                                {t.body_text}
+                                            </Text>
+                                            <View style={localStyles.templateCardFooter}>
+                                                <Text style={localStyles.templateTapPrompt}>Tap to customize variables & send</Text>
+                                                <IconChevronRight size={14} color="#059669" />
+                                            </View>
+                                        </TouchableOpacity>
+                                    ))}
+                            </ScrollView>
+                        )}
+                    </View>
+                ) : (
+                    <View style={{ flex: 1, height: '100%' }}>
+                        <View style={localStyles.modalHeaderRow}>
+                            <TouchableOpacity
+                                onPress={() => setActiveSelectedTemplate(null)}
+                                style={{ flexDirection: 'row', alignItems: 'center', gap: 4, paddingVertical: 4 }}>
+                                <Text style={{ color: Colors.whatsappGreen, fontWeight: '700', fontSize: 14 }}>← Back</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity onPress={() => setTemplateModalVisible(false)} style={localStyles.modalCloseBtn}>
+                                <Text style={localStyles.modalCloseBtnText}>✕</Text>
+                            </TouchableOpacity>
+                        </View>
 
-                <TouchableOpacity style={localStyles.primaryGreenBtn} onPress={handleSendMetaTemplate}>
-                    <Text style={localStyles.primaryGreenBtnText}>Send Official Meta Template</Text>
-                </TouchableOpacity>
+                        <Text style={localStyles.modalSheetTitle}>Personalize Template</Text>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+                            <Text style={{ fontSize: 14, fontWeight: '700', color: '#0F172A' }}>{activeSelectedTemplate.name}</Text>
+                            <View style={localStyles.templateBadgeApproved}>
+                                <Text style={localStyles.templateBadgeApprovedText}>APPROVED</Text>
+                            </View>
+                        </View>
+
+                        <ScrollView style={{ flex: 1 }} keyboardShouldPersistTaps="handled">
+                            {/* Dynamic Variable Inputs */}
+                            {Object.keys(templateVarValues).length > 0 ? (
+                                <View style={{ marginBottom: 12 }}>
+                                    <Text style={localStyles.sectionSubHeading}>Fill Template Parameters:</Text>
+                                    {Object.keys(templateVarValues)
+                                        .sort((a, b) => Number(a) - Number(b))
+                                        .map((varKey) => (
+                                            <View key={varKey} style={{ marginBottom: 8 }}>
+                                                <Text style={localStyles.inputLabel}>
+                                                    Variable {'{{' + varKey + '}}'} {varKey === '1' ? '(Customer / Greeting Name)' : varKey === '2' ? '(Value / Promo Code / Number)' : ''}
+                                                </Text>
+                                                <TextInput
+                                                    style={localStyles.styledInput}
+                                                    value={templateVarValues[varKey]}
+                                                    placeholder={`Value for {{${varKey}}}`}
+                                                    placeholderTextColor="#94A3B8"
+                                                    onChangeText={(txt) =>
+                                                        setTemplateVarValues((prev) => ({ ...prev, [varKey]: txt }))
+                                                    }
+                                                />
+                                            </View>
+                                        ))}
+                                </View>
+                            ) : (
+                                <View style={{ padding: 10, backgroundColor: '#F8FAFC', borderRadius: 8, marginBottom: 12 }}>
+                                    <Text style={{ fontSize: 12, color: '#64748B' }}>This template has no required dynamic placeholder parameters.</Text>
+                                </View>
+                            )}
+
+                            {/* Live Preview Box */}
+                            <Text style={localStyles.sectionSubHeading}>Live Message Preview:</Text>
+                            <View style={localStyles.previewBubble}>
+                                <View style={localStyles.templateBadge}>
+                                    <Text style={localStyles.templateBadgeText}>META VERIFIED TEMPLATE</Text>
+                                </View>
+                                <Text style={localStyles.previewBubbleText}>
+                                    {renderTemplatePreviewText(activeSelectedTemplate.body_text, templateVarValues)}
+                                </Text>
+                                <View style={localStyles.templateCtaRow}>
+                                    <IconStore size={14} color={Colors.whatsappTeal} />
+                                    <Text style={localStyles.templateCtaText}>Official WhatsApp Template</Text>
+                                </View>
+                            </View>
+
+                            <TouchableOpacity
+                                style={[localStyles.primaryGreenBtn, isSendingTemplate && { opacity: 0.7 }]}
+                                disabled={isSendingTemplate}
+                                onPress={handleSendOfficialTemplate}>
+                                {isSendingTemplate ? (
+                                    <ActivityIndicator size="small" color="#FFFFFF" />
+                                ) : (
+                                    <Text style={localStyles.primaryGreenBtnText}>Send Official Meta Template</Text>
+                                )}
+                            </TouchableOpacity>
+                        </ScrollView>
+                    </View>
+                )}
+            </SmoothModal>
+
+            {/* Smooth Modal: WhatsApp Commerce Catalog */}
+            <SmoothModal
+                visible={catalogModalVisible}
+                onClose={() => setCatalogModalVisible(false)}
+                height={Math.round(SCREEN_HEIGHT * 0.85)}>
+                <View style={{ flex: 1, height: '100%' }}>
+                    <View style={localStyles.modalHeaderRow}>
+                        <View>
+                            <Text style={localStyles.modalSheetTitle}>WhatsApp Product Catalog</Text>
+                            <Text style={localStyles.modalSheetSub}>Select items from synced Meta Business catalog</Text>
+                        </View>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                            <TouchableOpacity onPress={loadCatalogProducts} style={{ padding: 6 }}>
+                                <IconRefresh size={18} color="#059669" />
+                            </TouchableOpacity>
+                            <TouchableOpacity onPress={() => setCatalogModalVisible(false)} style={localStyles.modalCloseBtn}>
+                                <Text style={localStyles.modalCloseBtnText}>✕</Text>
+                            </TouchableOpacity>
+                        </View>
+                    </View>
+
+                    {/* Mode Tabs: Single Product, Collection, Storefront */}
+                    <View style={localStyles.catalogTabsRow}>
+                        <TouchableOpacity
+                            style={[localStyles.catalogTabBtn, catalogTab === 'single' && localStyles.catalogTabBtnActive]}
+                            onPress={() => setCatalogTab('single')}>
+                            <Text style={[localStyles.catalogTabBtnText, catalogTab === 'single' && localStyles.catalogTabBtnTextActive]}>
+                                Single Product
+                            </Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                            style={[localStyles.catalogTabBtn, catalogTab === 'collection' && localStyles.catalogTabBtnActive]}
+                            onPress={() => setCatalogTab('collection')}>
+                            <Text style={[localStyles.catalogTabBtnText, catalogTab === 'collection' && localStyles.catalogTabBtnTextActive]}>
+                                Collection ({selectedCatalogProductIds.length})
+                            </Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                            style={[localStyles.catalogTabBtn, catalogTab === 'storefront' && localStyles.catalogTabBtnActive]}
+                            onPress={() => setCatalogTab('storefront')}>
+                            <Text style={[localStyles.catalogTabBtnText, catalogTab === 'storefront' && localStyles.catalogTabBtnTextActive]}>
+                                Storefront
+                            </Text>
+                        </TouchableOpacity>
+                    </View>
+
+                    {/* Tab 1: Single Product */}
+                    {catalogTab === 'single' && (
+                        <View style={{ flex: 1 }}>
+                            {/* Search Bar */}
+                            <View style={localStyles.modalSearchContainer}>
+                                <IconSearch size={16} color="#94A3B8" />
+                                <TextInput
+                                    style={localStyles.modalSearchInput}
+                                    placeholder="Search products by name or SKU..."
+                                    placeholderTextColor="#94A3B8"
+                                    value={catalogSearch}
+                                    onChangeText={setCatalogSearch}
+                                />
+                                {!!catalogSearch && (
+                                    <TouchableOpacity onPress={() => setCatalogSearch('')} style={localStyles.modalClearSearch}>
+                                        <IconClose size={14} color="#94A3B8" />
+                                    </TouchableOpacity>
+                                )}
+                            </View>
+
+                            {catalogLoading ? (
+                                <View style={{ paddingVertical: 40, alignItems: 'center' }}>
+                                    <ActivityIndicator size="large" color={Colors.whatsappGreen} />
+                                    <Text style={{ marginTop: 10, color: '#64748B', fontSize: 13 }}>Loading products catalog...</Text>
+                                </View>
+                            ) : (
+                                <ScrollView style={{ flex: 1 }} keyboardShouldPersistTaps="handled">
+                                    <Text style={localStyles.sectionSubHeading}>Choose Product to Send:</Text>
+                                    {catalogProducts
+                                        .filter((p) =>
+                                            p.name.toLowerCase().includes(catalogSearch.toLowerCase()) ||
+                                            p.retailer_id.toLowerCase().includes(catalogSearch.toLowerCase())
+                                        )
+                                        .map((prod) => {
+                                            const isSelected = selectedCatalogProduct?.id === prod.id || selectedCatalogProduct?.retailer_id === prod.retailer_id;
+                                            return (
+                                                <TouchableOpacity
+                                                    key={prod.id || prod.retailer_id}
+                                                    style={[localStyles.catalogProductCard, isSelected && localStyles.catalogProductCardActive]}
+                                                    activeOpacity={0.7}
+                                                    onPress={() => setSelectedCatalogProduct(prod)}>
+                                                    <Image
+                                                        source={{ uri: prod.image_url }}
+                                                        style={localStyles.catalogProductThumb}
+                                                        resizeMode="cover"
+                                                    />
+                                                    <View style={{ flex: 1, marginLeft: 10 }}>
+                                                        <Text style={localStyles.catalogProductName} numberOfLines={1}>{prod.name}</Text>
+                                                        <Text style={localStyles.catalogProductDesc} numberOfLines={1}>{prod.description}</Text>
+                                                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4 }}>
+                                                            <Text style={localStyles.catalogProductPrice}>
+                                                                {prod.currency === 'USD' ? '$' : prod.currency === 'INR' ? '₹' : prod.currency + ' '}
+                                                                {prod.price}
+                                                            </Text>
+                                                            <Text style={localStyles.catalogProductSku}>SKU: {prod.retailer_id}</Text>
+                                                        </View>
+                                                    </View>
+                                                    <View style={[localStyles.catalogRadioCircle, isSelected && localStyles.catalogRadioCircleActive]}>
+                                                        {isSelected && <View style={localStyles.catalogRadioDot} />}
+                                                    </View>
+                                                </TouchableOpacity>
+                                            );
+                                        })}
+
+                                    {selectedCatalogProduct && (
+                                        <View style={{ marginTop: 14 }}>
+                                            <Text style={localStyles.inputLabel}>Custom Message Note (optional)</Text>
+                                            <TextInput
+                                                style={localStyles.styledInput}
+                                                value={catalogCustomBody}
+                                                placeholder={`Special offer on ${selectedCatalogProduct.name}...`}
+                                                placeholderTextColor="#94A3B8"
+                                                onChangeText={setCatalogCustomBody}
+                                            />
+
+                                            <Text style={localStyles.inputLabel}>Footer Note (optional)</Text>
+                                            <TextInput
+                                                style={localStyles.styledInput}
+                                                value={catalogCustomFooter}
+                                                placeholder="WhatsApp Business Catalog"
+                                                placeholderTextColor="#94A3B8"
+                                                onChangeText={setCatalogCustomFooter}
+                                            />
+
+                                            <TouchableOpacity
+                                                style={[localStyles.primaryGreenBtn, isSendingCatalog && { opacity: 0.7 }]}
+                                                disabled={isSendingCatalog}
+                                                onPress={handleSendSingleProduct}>
+                                                {isSendingCatalog ? (
+                                                    <ActivityIndicator size="small" color="#FFFFFF" />
+                                                ) : (
+                                                    <Text style={localStyles.primaryGreenBtnText}>
+                                                        Send Product Card to {participant.name.split(' ')[0]}
+                                                    </Text>
+                                                )}
+                                            </TouchableOpacity>
+                                        </View>
+                                    )}
+                                </ScrollView>
+                            )}
+                        </View>
+                    )}
+
+                    {/* Tab 2: Collection */}
+                    {catalogTab === 'collection' && (
+                        <ScrollView style={{ flex: 1 }} keyboardShouldPersistTaps="handled">
+                            <Text style={localStyles.sectionSubHeading}>Select Products for Curated Collection (Max 10):</Text>
+                            {catalogProducts.map((prod) => {
+                                const isChecked = selectedCatalogProductIds.includes(prod.retailer_id);
+                                return (
+                                    <TouchableOpacity
+                                        key={prod.id || prod.retailer_id}
+                                        style={[localStyles.catalogProductCard, isChecked && localStyles.catalogProductCardActive]}
+                                        activeOpacity={0.7}
+                                        onPress={() => {
+                                            if (isChecked) {
+                                                setSelectedCatalogProductIds(selectedCatalogProductIds.filter((id) => id !== prod.retailer_id));
+                                            } else {
+                                                if (selectedCatalogProductIds.length >= 10) {
+                                                    Alert.alert('Collection Limit', 'Meta limits collections to 10 products.');
+                                                    return;
+                                                }
+                                                setSelectedCatalogProductIds([...selectedCatalogProductIds, prod.retailer_id]);
+                                            }
+                                        }}>
+                                        <Image
+                                            source={{ uri: prod.image_url }}
+                                            style={localStyles.catalogProductThumb}
+                                            resizeMode="cover"
+                                        />
+                                        <View style={{ flex: 1, marginLeft: 10 }}>
+                                            <Text style={localStyles.catalogProductName} numberOfLines={1}>{prod.name}</Text>
+                                            <Text style={localStyles.catalogProductPrice}>
+                                                {prod.currency === 'USD' ? '$' : prod.currency === 'INR' ? '₹' : prod.currency + ' '}
+                                                {prod.price}
+                                            </Text>
+                                        </View>
+                                        <View style={[localStyles.catalogCheckSquare, isChecked && localStyles.catalogCheckSquareActive]}>
+                                            {isChecked && <Text style={{ color: '#FFFFFF', fontSize: 12, fontWeight: '700' }}>✓</Text>}
+                                        </View>
+                                    </TouchableOpacity>
+                                );
+                            })}
+
+                            <View style={{ marginTop: 12 }}>
+                                <Text style={localStyles.inputLabel}>Collection Message</Text>
+                                <TextInput
+                                    style={localStyles.styledInput}
+                                    value={catalogCustomBody}
+                                    placeholder="Browse our featured items and order directly in WhatsApp."
+                                    placeholderTextColor="#94A3B8"
+                                    onChangeText={setCatalogCustomBody}
+                                />
+
+                                <TouchableOpacity
+                                    style={[localStyles.primaryGreenBtn, (isSendingCatalog || selectedCatalogProductIds.length === 0) && { opacity: 0.7 }]}
+                                    disabled={isSendingCatalog || selectedCatalogProductIds.length === 0}
+                                    onPress={handleSendCollectionProducts}>
+                                    {isSendingCatalog ? (
+                                        <ActivityIndicator size="small" color="#FFFFFF" />
+                                    ) : (
+                                        <Text style={localStyles.primaryGreenBtnText}>
+                                            Send Collection ({selectedCatalogProductIds.length} items)
+                                        </Text>
+                                    )}
+                                </TouchableOpacity>
+                            </View>
+                        </ScrollView>
+                    )}
+
+                    {/* Tab 3: Storefront */}
+                    {catalogTab === 'storefront' && (
+                        <View style={{ flex: 1, justifyContent: 'center', paddingVertical: 14 }}>
+                            <View style={localStyles.storefrontBannerCard}>
+                                <View style={localStyles.storefrontIconCircle}>
+                                    <IconStore size={36} color="#059669" />
+                                </View>
+                                <Text style={localStyles.storefrontTitle}>Official WhatsApp Catalog Storefront</Text>
+                                <Text style={localStyles.storefrontSub}>
+                                    Invite {participant.name.split(' ')[0]} to browse your entire product line with in-app WhatsApp shopping cart.
+                                </Text>
+                            </View>
+
+                            <Text style={localStyles.inputLabel}>Custom Storefront Intro</Text>
+                            <TextInput
+                                style={localStyles.styledInput}
+                                value={catalogCustomBody}
+                                placeholder="Explore our full product catalog and place your order directly in chat!"
+                                placeholderTextColor="#94A3B8"
+                                onChangeText={setCatalogCustomBody}
+                            />
+
+                            <TouchableOpacity
+                                style={[localStyles.primaryGreenBtn, isSendingCatalog && { opacity: 0.7 }]}
+                                disabled={isSendingCatalog}
+                                onPress={handleSendStorefront}>
+                                {isSendingCatalog ? (
+                                    <ActivityIndicator size="small" color="#FFFFFF" />
+                                ) : (
+                                    <Text style={localStyles.primaryGreenBtnText}>Send Storefront Card to Customer</Text>
+                                )}
+                            </TouchableOpacity>
+                        </View>
+                    )}
+                </View>
             </SmoothModal>
 
             {/* Smooth Modal: Quick Replies */}
-            <SmoothModal visible={quickRepliesVisible} onClose={() => setQuickRepliesVisible(false)}>
-                <Text style={localStyles.modalSheetTitle}>Quick Replies Shortcuts</Text>
+            <SmoothModal
+                visible={quickRepliesVisible}
+                onClose={() => setQuickRepliesVisible(false)}
+                height={Math.round(SCREEN_HEIGHT * 0.75)}>
+                <View style={{ flex: 1, height: '100%' }}>
+                    <View style={localStyles.modalHeaderRow}>
+                        <View>
+                            <Text style={localStyles.modalSheetTitle}>Quick Replies Shortcuts (/)</Text>
+                            <Text style={localStyles.modalSheetSub}>Tap any canned reply to insert into composer</Text>
+                        </View>
+                        <TouchableOpacity onPress={() => setQuickRepliesVisible(false)} style={localStyles.modalCloseBtn}>
+                            <Text style={localStyles.modalCloseBtnText}>✕</Text>
+                        </TouchableOpacity>
+                    </View>
 
-                {[
-                    { shortcut: '/hours', text: 'Our business hours are Monday through Friday, 9:00 AM to 7:00 PM EST.' },
-                    { shortcut: '/pricing', text: 'Our WhatsApp CRM plans start at $49/mo with full broadcasting & multi-agent team inbox.' },
-                    { shortcut: '/payment', text: 'You can complete your order securely via Card, UPI, or Stripe.' },
-                    { shortcut: '/support', text: 'Our support team is available 24/7. An agent will respond shortly.' },
-                ].map((qr) => (
-                    <TouchableOpacity
-                        key={qr.shortcut}
-                        style={localStyles.quickReplyRow}
-                        onPress={() => {
-                            setInputText(qr.text);
-                            setQuickRepliesVisible(false);
-                        }}>
-                        <Text style={localStyles.quickReplyShortcut}>{qr.shortcut}</Text>
-                        <Text style={localStyles.quickReplySnippet}>{qr.text}</Text>
-                    </TouchableOpacity>
-                ))}
+                    {/* Search Bar */}
+                    <View style={localStyles.modalSearchContainer}>
+                        <IconSearch size={16} color="#94A3B8" />
+                        <TextInput
+                            style={localStyles.modalSearchInput}
+                            placeholder="Search shortcuts (e.g. /hours, pricing)..."
+                            placeholderTextColor="#94A3B8"
+                            value={quickRepliesSearch}
+                            onChangeText={setQuickRepliesSearch}
+                        />
+                        {!!quickRepliesSearch && (
+                            <TouchableOpacity onPress={() => setQuickRepliesSearch('')} style={localStyles.modalClearSearch}>
+                                <IconClose size={14} color="#94A3B8" />
+                            </TouchableOpacity>
+                        )}
+                    </View>
+
+                    {quickRepliesLoading ? (
+                        <View style={{ paddingVertical: 40, alignItems: 'center' }}>
+                            <ActivityIndicator size="large" color={Colors.whatsappGreen} />
+                            <Text style={{ marginTop: 10, color: '#64748B', fontSize: 13 }}>Loading quick replies...</Text>
+                        </View>
+                    ) : (
+                        <ScrollView style={{ flex: 1, marginTop: 8 }} keyboardShouldPersistTaps="handled">
+                            {quickRepliesList
+                                .filter((qr) => {
+                                    const q = quickRepliesSearch.toLowerCase();
+                                    return (
+                                        qr.title.toLowerCase().includes(q) ||
+                                        qr.content_text.toLowerCase().includes(q) ||
+                                        (qr.category && qr.category.toLowerCase().includes(q))
+                                    );
+                                })
+                                .map((qr) => (
+                                    <TouchableOpacity
+                                        key={qr.id}
+                                        style={localStyles.quickReplyRowCard}
+                                        activeOpacity={0.7}
+                                        onPress={() => handlePickQuickReply(qr)}>
+                                        <View style={localStyles.quickReplyZapCircle}>
+                                            <ZapIcon size={16} color="#D97706" />
+                                        </View>
+                                        <View style={{ flex: 1, marginLeft: 10 }}>
+                                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                                                <Text style={localStyles.quickReplyTitleText}>{qr.title}</Text>
+                                                {qr.category ? (
+                                                    <View style={localStyles.quickReplyShortcutBadge}>
+                                                        <Text style={localStyles.quickReplyShortcutBadgeText}>
+                                                            {qr.category.startsWith('/') ? qr.category : `/${qr.category}`}
+                                                        </Text>
+                                                    </View>
+                                                ) : null}
+                                            </View>
+                                            <Text style={localStyles.quickReplySnippetText} numberOfLines={2}>
+                                                {qr.content_text}
+                                            </Text>
+                                        </View>
+                                        <IconChevronRight size={14} color="#94A3B8" />
+                                    </TouchableOpacity>
+                                ))}
+                        </ScrollView>
+                    )}
+                </View>
             </SmoothModal>
 
             {/* Smooth Modal: Interactive Buttons Generator */}
-            <SmoothModal visible={interactiveModalVisible} onClose={() => setInteractiveModalVisible(false)}>
+            <SmoothModal
+                visible={interactiveModalVisible}
+                onClose={() => setInteractiveModalVisible(false)}
+                maxHeight={Math.round(SCREEN_HEIGHT * 0.8)}>
                 <Text style={localStyles.modalSheetTitle}>Create Interactive WhatsApp Buttons</Text>
 
                 <Text style={localStyles.inputLabel}>Body Prompt</Text>
@@ -1445,63 +2522,68 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
             </SmoothModal>
 
             {/* Smooth Modal: 360 Contact CRM Drawer */}
-            <SmoothModal visible={crmDrawerVisible} onClose={() => setCrmDrawerVisible(false)}>
+            <SmoothModal
+                visible={crmDrawerVisible}
+                onClose={() => setCrmDrawerVisible(false)}
+                maxHeight={Math.round(SCREEN_HEIGHT * 0.85)}>
                 <Text style={localStyles.modalSheetTitle}>Contact CRM 360° Profile</Text>
 
-                <View style={localStyles.crmHeaderCard}>
-                    <View style={localStyles.crmAvatarBig}>
-                        <Text style={localStyles.crmAvatarBigText}>{participant.name[0]?.toUpperCase() || 'C'}</Text>
-                    </View>
-                    <Text style={localStyles.crmNameText}>{participant.name}</Text>
-                    <Text style={localStyles.crmPhoneText}>{participant.phone || 'WhatsApp Verified Contact'}</Text>
-                </View>
-
-                <Text style={localStyles.crmSectionHeader}>CRM Tags</Text>
-                <View style={localStyles.tagsRow}>
-                    <View style={[localStyles.tagBadge, { backgroundColor: participant.tag.bg, paddingHorizontal: 10, paddingVertical: 4 }]}>
-                        <Text style={[localStyles.tagBadgeText, { color: participant.tag.color, fontSize: 12 }]}>{participant.tag.label}</Text>
-                    </View>
-                    <View style={[localStyles.tagBadge, { backgroundColor: '#EDE9FE', paddingHorizontal: 10, paddingVertical: 4 }]}>
-                        <Text style={{ color: '#7C3AED', fontSize: 12, fontWeight: '700' }}>VIP Customer</Text>
-                    </View>
-                </View>
-
-                {onOpenDeals && (
-                    <TouchableOpacity
-                        style={localStyles.crmDealsCard}
-                        onPress={() => {
-                            setCrmDrawerVisible(false);
-                            onOpenDeals();
-                        }}>
-                        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-                            <View>
-                                <Text style={localStyles.crmDealTitle}>Enterprise License Deal ($12,000)</Text>
-                                <Text style={localStyles.crmDealSub}>Stage: Proposal Sent (75% probability)</Text>
-                            </View>
-                            <IconDollar size={20} color="#D97706" />
+                <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 24 }}>
+                    <View style={localStyles.crmHeaderCard}>
+                        <View style={localStyles.crmAvatarBig}>
+                            <Text style={localStyles.crmAvatarBigText}>{participant.name[0]?.toUpperCase() || 'C'}</Text>
                         </View>
-                    </TouchableOpacity>
-                )}
-
-                <Text style={localStyles.crmSectionHeader}>Internal Agent Notes</Text>
-                {contactNotes.map((note, i) => (
-                    <View key={i} style={localStyles.crmNoteItem}>
-                        <Text style={localStyles.crmNoteText}>• {note}</Text>
+                        <Text style={localStyles.crmNameText}>{participant.name}</Text>
+                        <Text style={localStyles.crmPhoneText}>{participant.phone || 'WhatsApp Verified Contact'}</Text>
                     </View>
-                ))}
 
-                <View style={localStyles.addNoteRow}>
-                    <TextInput
-                        style={localStyles.noteInput}
-                        placeholder="Add internal note..."
-                        placeholderTextColor="#94A3B8"
-                        value={newNoteText}
-                        onChangeText={setNewNoteText}
-                    />
-                    <TouchableOpacity style={localStyles.saveNoteBtn} onPress={handleAddNote}>
-                        <Text style={localStyles.saveNoteBtnText}>Save</Text>
-                    </TouchableOpacity>
-                </View>
+                    <Text style={localStyles.crmSectionHeader}>CRM Tags</Text>
+                    <View style={localStyles.tagsRow}>
+                        <View style={[localStyles.tagBadge, { backgroundColor: participant.tag.bg, paddingHorizontal: 10, paddingVertical: 4 }]}>
+                            <Text style={[localStyles.tagBadgeText, { color: participant.tag.color, fontSize: 12 }]}>{participant.tag.label}</Text>
+                        </View>
+                        <View style={[localStyles.tagBadge, { backgroundColor: '#EDE9FE', paddingHorizontal: 10, paddingVertical: 4 }]}>
+                            <Text style={{ color: '#7C3AED', fontSize: 12, fontWeight: '700' }}>VIP Customer</Text>
+                        </View>
+                    </View>
+
+                    {onOpenDeals && (
+                        <TouchableOpacity
+                            style={localStyles.crmDealsCard}
+                            onPress={() => {
+                                setCrmDrawerVisible(false);
+                                onOpenDeals();
+                            }}>
+                            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                                <View>
+                                    <Text style={localStyles.crmDealTitle}>Enterprise License Deal ($12,000)</Text>
+                                    <Text style={localStyles.crmDealSub}>Stage: Proposal Sent (75% probability)</Text>
+                                </View>
+                                <IconDollar size={20} color="#D97706" />
+                            </View>
+                        </TouchableOpacity>
+                    )}
+
+                    <Text style={localStyles.crmSectionHeader}>Internal Agent Notes</Text>
+                    {contactNotes.map((note, i) => (
+                        <View key={i} style={localStyles.crmNoteItem}>
+                            <Text style={localStyles.crmNoteText}>• {note}</Text>
+                        </View>
+                    ))}
+
+                    <View style={localStyles.addNoteRow}>
+                        <TextInput
+                            style={localStyles.noteInput}
+                            placeholder="Add internal note..."
+                            placeholderTextColor="#94A3B8"
+                            value={newNoteText}
+                            onChangeText={setNewNoteText}
+                        />
+                        <TouchableOpacity style={localStyles.saveNoteBtn} onPress={handleAddNote}>
+                            <Text style={localStyles.saveNoteBtnText}>Save</Text>
+                        </TouchableOpacity>
+                    </View>
+                </ScrollView>
             </SmoothModal>
         </SafeAreaView>
     );
@@ -2218,5 +3300,389 @@ const localStyles = StyleSheet.create({
         color: '#FFFFFF',
         fontWeight: '700',
         fontSize: 12,
+    },
+    // New Feature Styles: Templates, Catalog, Quick Replies, AI Draft
+    templateNameSubtitle: {
+        fontSize: 11,
+        fontWeight: '700',
+        color: '#059669',
+        marginBottom: 4,
+    },
+    catalogBubbleImage: {
+        width: '100%',
+        height: 140,
+        borderRadius: 8,
+        marginBottom: 8,
+        backgroundColor: '#E2E8F0',
+    },
+    catalogBadgeRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 4,
+        marginBottom: 4,
+    },
+    catalogBadgeText: {
+        fontSize: 10,
+        fontWeight: '800',
+        color: '#059669',
+        letterSpacing: 0.5,
+    },
+    catalogCtaBtn: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 6,
+        paddingVertical: 8,
+        backgroundColor: '#ECFDF5',
+        borderRadius: 8,
+        marginTop: 8,
+        borderWidth: 1,
+        borderColor: '#A7F3D0',
+    },
+    catalogCtaBtnText: {
+        fontSize: 12,
+        fontWeight: '700',
+        color: '#059669',
+    },
+    aiBadgePill: {
+        backgroundColor: '#EDE9FE',
+        paddingHorizontal: 6,
+        paddingVertical: 1,
+        borderRadius: 6,
+    },
+    aiBadgePillText: {
+        fontSize: 10,
+        fontWeight: '800',
+        color: '#7C3AED',
+    },
+    aiDraftingBanner: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+        backgroundColor: '#F5F3FF',
+        borderWidth: 1,
+        borderColor: '#DDD6FE',
+        paddingHorizontal: 12,
+        paddingVertical: 8,
+        borderRadius: 10,
+        marginHorizontal: 10,
+        marginBottom: 6,
+    },
+    aiDraftingBannerText: {
+        fontSize: 12,
+        fontWeight: '600',
+        color: '#7C3AED',
+    },
+    modalHeaderRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        marginBottom: 10,
+    },
+    modalSheetSub: {
+        fontSize: 11,
+        color: '#64748B',
+        marginTop: 1,
+    },
+    modalCloseBtn: {
+        padding: 4,
+    },
+    modalCloseBtnText: {
+        fontSize: 18,
+        color: '#94A3B8',
+        fontWeight: '700',
+    },
+    modalSearchContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: '#F1F5F9',
+        borderRadius: 10,
+        paddingHorizontal: 10,
+        height: 38,
+        marginBottom: 10,
+    },
+    modalSearchInput: {
+        flex: 1,
+        fontSize: 13,
+        color: '#0F172A',
+        marginLeft: 6,
+        paddingVertical: 0,
+    },
+    modalClearSearch: {
+        padding: 4,
+    },
+    filterChipsRow: {
+        flexDirection: 'row',
+        gap: 6,
+        marginBottom: 8,
+    },
+    filterChip: {
+        paddingHorizontal: 10,
+        paddingVertical: 5,
+        borderRadius: 16,
+        backgroundColor: '#F1F5F9',
+    },
+    filterChipActive: {
+        backgroundColor: Colors.whatsappGreen,
+    },
+    filterChipText: {
+        fontSize: 11,
+        fontWeight: '600',
+        color: '#64748B',
+    },
+    filterChipTextActive: {
+        color: '#FFFFFF',
+    },
+    templateCard: {
+        backgroundColor: '#FFFFFF',
+        borderRadius: 10,
+        padding: 12,
+        marginBottom: 8,
+        borderWidth: 1,
+        borderColor: '#E2E8F0',
+    },
+    templateCardHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        marginBottom: 4,
+    },
+    templateCardName: {
+        fontSize: 13,
+        fontWeight: '700',
+        color: '#0F172A',
+        flex: 1,
+        marginRight: 8,
+    },
+    templateBadgeApproved: {
+        backgroundColor: '#DCFCE7',
+        paddingHorizontal: 6,
+        paddingVertical: 2,
+        borderRadius: 6,
+    },
+    templateBadgeApprovedText: {
+        fontSize: 10,
+        fontWeight: '800',
+        color: '#15803D',
+    },
+    templateCategoryBadge: {
+        backgroundColor: '#EDE9FE',
+        paddingHorizontal: 6,
+        paddingVertical: 2,
+        borderRadius: 6,
+    },
+    templateCategoryBadgeText: {
+        fontSize: 10,
+        fontWeight: '600',
+        color: '#7C3AED',
+    },
+    templateCardBody: {
+        fontSize: 12,
+        color: '#475569',
+        lineHeight: 17,
+        marginBottom: 6,
+    },
+    templateCardFooter: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        borderTopWidth: 1,
+        borderTopColor: '#F8FAFC',
+        paddingTop: 6,
+    },
+    templateTapPrompt: {
+        fontSize: 11,
+        fontWeight: '600',
+        color: '#059669',
+    },
+    sectionSubHeading: {
+        fontSize: 12,
+        fontWeight: '700',
+        color: '#334155',
+        marginBottom: 6,
+    },
+    previewBubble: {
+        backgroundColor: '#E7FCE8',
+        borderRadius: 12,
+        padding: 12,
+        borderWidth: 1,
+        borderColor: '#BBF7D0',
+        marginBottom: 12,
+    },
+    previewBubbleText: {
+        fontSize: 13,
+        color: '#0F172A',
+        lineHeight: 18,
+    },
+    catalogTabsRow: {
+        flexDirection: 'row',
+        backgroundColor: '#F1F5F9',
+        borderRadius: 8,
+        padding: 3,
+        marginBottom: 10,
+    },
+    catalogTabBtn: {
+        flex: 1,
+        paddingVertical: 6,
+        alignItems: 'center',
+        borderRadius: 6,
+    },
+    catalogTabBtnActive: {
+        backgroundColor: '#FFFFFF',
+        shadowColor: '#000000',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.1,
+        shadowRadius: 2,
+        elevation: 1,
+    },
+    catalogTabBtnText: {
+        fontSize: 11,
+        fontWeight: '600',
+        color: '#64748B',
+    },
+    catalogTabBtnTextActive: {
+        color: '#0F172A',
+        fontWeight: '700',
+    },
+    catalogProductCard: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: '#FFFFFF',
+        borderRadius: 10,
+        padding: 10,
+        marginBottom: 8,
+        borderWidth: 1,
+        borderColor: '#E2E8F0',
+    },
+    catalogProductCardActive: {
+        borderColor: Colors.whatsappGreen,
+        backgroundColor: '#F0FDF4',
+    },
+    catalogProductThumb: {
+        width: 50,
+        height: 50,
+        borderRadius: 8,
+        backgroundColor: '#E2E8F0',
+    },
+    catalogProductName: {
+        fontSize: 13,
+        fontWeight: '700',
+        color: '#0F172A',
+    },
+    catalogProductDesc: {
+        fontSize: 11,
+        color: '#64748B',
+        marginTop: 1,
+    },
+    catalogProductPrice: {
+        fontSize: 12,
+        fontWeight: '700',
+        color: '#059669',
+    },
+    catalogProductSku: {
+        fontSize: 10,
+        color: '#94A3B8',
+        fontWeight: '600',
+    },
+    catalogRadioCircle: {
+        width: 20,
+        height: 20,
+        borderRadius: 10,
+        borderWidth: 1.5,
+        borderColor: '#CBD5E1',
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    catalogRadioCircleActive: {
+        borderColor: Colors.whatsappGreen,
+    },
+    catalogRadioDot: {
+        width: 10,
+        height: 10,
+        borderRadius: 5,
+        backgroundColor: Colors.whatsappGreen,
+    },
+    catalogCheckSquare: {
+        width: 22,
+        height: 22,
+        borderRadius: 6,
+        borderWidth: 1.5,
+        borderColor: '#CBD5E1',
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    catalogCheckSquareActive: {
+        borderColor: Colors.whatsappGreen,
+        backgroundColor: Colors.whatsappGreen,
+    },
+    storefrontBannerCard: {
+        alignItems: 'center',
+        backgroundColor: '#F0FDF4',
+        borderRadius: 12,
+        padding: 20,
+        borderWidth: 1,
+        borderColor: '#BBF7D0',
+        marginBottom: 16,
+    },
+    storefrontIconCircle: {
+        width: 64,
+        height: 64,
+        borderRadius: 32,
+        backgroundColor: '#DCFCE7',
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginBottom: 10,
+    },
+    storefrontTitle: {
+        fontSize: 15,
+        fontWeight: '700',
+        color: '#0F172A',
+        textAlign: 'center',
+    },
+    storefrontSub: {
+        fontSize: 12,
+        color: '#475569',
+        textAlign: 'center',
+        marginTop: 4,
+        lineHeight: 17,
+    },
+    quickReplyRowCard: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: '#FFFFFF',
+        borderRadius: 10,
+        padding: 10,
+        marginBottom: 8,
+        borderWidth: 1,
+        borderColor: '#E2E8F0',
+    },
+    quickReplyZapCircle: {
+        width: 32,
+        height: 32,
+        borderRadius: 16,
+        backgroundColor: '#FEF3C7',
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    quickReplyTitleText: {
+        fontSize: 13,
+        fontWeight: '700',
+        color: '#0F172A',
+    },
+    quickReplyShortcutBadge: {
+        backgroundColor: '#DCFCE7',
+        paddingHorizontal: 6,
+        paddingVertical: 1,
+        borderRadius: 4,
+    },
+    quickReplyShortcutBadgeText: {
+        fontSize: 10,
+        fontWeight: '700',
+        color: '#15803D',
+    },
+    quickReplySnippetText: {
+        fontSize: 12,
+        color: '#64748B',
+        marginTop: 2,
     },
 });

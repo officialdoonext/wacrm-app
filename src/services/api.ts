@@ -12,6 +12,8 @@ export interface SendMessagePayload {
   template_name?: string;
   template_language?: string;
   template_params?: string[];
+  template_message_params?: any;
+  interactive_payload?: any;
 }
 
 export interface QuickReplyItem {
@@ -411,6 +413,7 @@ class BackendApiService {
     product_name?: string;
     product_price?: number;
     product_currency?: string;
+    header_text?: string;
     body_text?: string;
     footer_text?: string;
     sections?: any[];
