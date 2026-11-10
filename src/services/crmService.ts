@@ -1,5 +1,9 @@
 import { supabase, authService } from './supabase';
 import { backendApi, SendMessagePayload } from './api';
+import {
+  notifyNewWhatsAppMessage,
+  notifyAutomationTriggered,
+} from './notificationService';
 
 export interface DynamicContact {
   id: string;
@@ -1793,8 +1797,40 @@ class CRMService {
       .on(
         'postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'messages' },
-        () => {
+        (payload: any) => {
+          const newMsg = payload?.new;
+          if (newMsg && newMsg.sender_type === 'customer') {
+            const conv = conversationsCache.find((c) => c.id === newMsg.conversation_id);
+            const contactName = conv?.contact?.name || conv?.contact?.phone || 'Customer';
+            const messagePreview =
+              newMsg.content_text ||
+              (newMsg.content_type && newMsg.content_type !== 'text'
+                ? `Sent a ${newMsg.content_type}`
+                : 'Sent a message');
+
+            notifyNewWhatsAppMessage({
+              conversationId: newMsg.conversation_id,
+              contactName,
+              messageText: messagePreview,
+              contactId: newMsg.contact_id || conv?.contact_id,
+            });
+          }
           this.fetchConversations(true).then(() => onNewMessageOrConversation());
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'automation_logs' },
+        (payload: any) => {
+          const log = payload?.new;
+          if (log) {
+            notifyAutomationTriggered({
+              title: 'Automation Workflow Executed',
+              workflowName: log.automation_name || 'Workflow Rule',
+              details: log.contact_name ? `Triggered for ${log.contact_name}` : undefined,
+              automationId: log.automation_id,
+            });
+          }
         }
       )
       .subscribe();

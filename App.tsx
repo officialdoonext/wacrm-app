@@ -1,8 +1,16 @@
 import React, { useEffect } from 'react';
 import { enableScreens } from 'react-native-screens';
-import { NavigationContainer } from '@react-navigation/native';
+import {
+  NavigationContainer,
+  createNavigationContainerRef,
+} from '@react-navigation/native';
 import { createNativeStackNavigator, NativeStackScreenProps } from '@react-navigation/native-stack';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import {
+  requestNotificationPermission,
+  getFCMToken,
+  initializeNotificationListeners,
+} from './src/services/notificationService';
 
 import { SplashScreen } from './src/screens/SplashScreen/SplashScreen';
 import { WelcomeScreen } from './src/screens/WelcomeScreen/WelcomeScreen';
@@ -323,13 +331,50 @@ function MoreScreenWrapper({ navigation }: NativeStackScreenProps<RootStackParam
 }
 
 // -------------------------------------------------------------
-// Main Application Root
+// Main Application Root with Push & Local Notifications
 // -------------------------------------------------------------
 
+export const navigationRef = createNavigationContainerRef<RootStackParamList>();
+
 export default function App(): React.JSX.Element {
+  useEffect(() => {
+    // 1. Request notification permission & set up sound/vibration channels
+    requestNotificationPermission().then(() => {
+      // 2. Retrieve & sync FCM token
+      getFCMToken();
+    });
+
+    // 3. Listen for foreground FCM push & Notifee banner clicks
+    const unsubscribeNotifications = initializeNotificationListeners((data) => {
+      if (navigationRef.isReady()) {
+        if (data.type === 'chat' && data.conversationId) {
+          navigationRef.navigate('Chat', {
+            participant: {
+              id: data.conversationId,
+              conversationId: data.conversationId,
+              contactId: data.contactId,
+              name: data.senderName || 'Customer',
+              tag: { label: 'Customer', bg: '#DCFCE7', color: '#166534' },
+            },
+          });
+        } else if (data.screen === 'Automation' || data.type === 'automation') {
+          navigationRef.navigate('Automation');
+        } else if (data.screen === 'Inbox') {
+          navigationRef.navigate('Inbox');
+        } else if (data.screen === 'Notifications') {
+          navigationRef.navigate('Notifications');
+        }
+      }
+    });
+
+    return () => {
+      unsubscribeNotifications();
+    };
+  }, []);
+
   return (
     <SafeAreaProvider>
-      <NavigationContainer>
+      <NavigationContainer ref={navigationRef}>
         <Stack.Navigator
           initialRouteName="Splash"
           screenOptions={{

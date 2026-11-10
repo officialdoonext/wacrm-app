@@ -1,0 +1,30 @@
+{
+  "project_info": {
+    "project_number": "1051448041188",
+    "project_id": "menext-app-4c541",
+    "storage_bucket": "menext-app-4c541.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1051448041188:android:dcaa5ed2609d5a570696f1",
+        "android_client_info": {
+          "package_name": "com.menext"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCoCkmmmHsuMrsYJdxV_8G7fj0W24tu2-M"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
+

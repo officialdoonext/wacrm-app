@@ -1,4 +1,4 @@
-package com.clientapp
+package com.menext
 
 import com.facebook.react.ReactPackage
 import com.facebook.react.bridge.NativeModule

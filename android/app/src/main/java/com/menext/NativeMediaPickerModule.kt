@@ -1,5 +1,5 @@
 
-package com.clientapp
+package com.menext
 
 import android.app.Activity
 import android.content.Intent

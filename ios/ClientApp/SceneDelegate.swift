@@ -30,7 +30,7 @@ class SceneDelegate: RCTDefaultReactNativeFactoryDelegate, UIWindowSceneDelegate
     #endif
     
     reactNativeFactory?.startReactNative(
-      withModuleName: "ClientApp",
+      withModuleName: "menext",
       in: window,
       connectionOptions: connectionOptions
     )

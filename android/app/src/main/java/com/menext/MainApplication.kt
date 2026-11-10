@@ -1,4 +1,4 @@
-package com.clientapp
+package com.menext
 
 import android.app.Application
 import com.facebook.react.PackageList
