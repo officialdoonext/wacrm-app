@@ -34,6 +34,9 @@ export const NOTIFICATION_CHANNELS = {
   GENERAL: 'general_v2',
 } as const;
 
+export const APP_NOTIFICATION_IMAGE_URL =
+  'https://ik.imagekit.io/doonext/menext/app-icon.png';
+
 let channelsCreated = false;
 let globalSubscriptionChannel: any = null;
 let activeChatConversationId: string | null = null;
@@ -224,6 +227,7 @@ export async function displayLocalNotification(params: {
   subtitle?: string;
   data?: NotificationPayloadData;
   channelId?: string;
+  imageUrl?: string;
 }): Promise<string | undefined> {
   const {
     title,
@@ -231,12 +235,13 @@ export async function displayLocalNotification(params: {
     subtitle,
     data,
     channelId = NOTIFICATION_CHANNELS.INBOX_MESSAGES,
+    imageUrl = (data as any)?.imageUrl || APP_NOTIFICATION_IMAGE_URL,
   } = params;
 
   try {
     await setupNotificationChannels();
 
-    // 1. Try displaying with dedicated monochrome icon
+    // 1. Try displaying with dedicated monochrome icon + custom image
     try {
       return await notifee.displayNotification({
         title,
@@ -246,6 +251,7 @@ export async function displayLocalNotification(params: {
         android: {
           channelId,
           smallIcon: 'ic_notification',
+          largeIcon: imageUrl,
           color: '#00A859',
           importance: AndroidImportance.HIGH,
           pressAction: {
@@ -254,6 +260,7 @@ export async function displayLocalNotification(params: {
         },
         ios: {
           sound: 'default',
+          attachments: imageUrl ? [{ url: imageUrl }] : undefined,
           foregroundPresentationOptions: {
             badge: true,
             sound: true,
@@ -276,6 +283,7 @@ export async function displayLocalNotification(params: {
         android: {
           channelId,
           color: '#00A859',
+          largeIcon: imageUrl,
           importance: AndroidImportance.HIGH,
           pressAction: {
             id: 'default',
@@ -283,6 +291,7 @@ export async function displayLocalNotification(params: {
         },
         ios: {
           sound: 'default',
+          attachments: imageUrl ? [{ url: imageUrl }] : undefined,
           foregroundPresentationOptions: {
             badge: true,
             sound: true,
@@ -497,11 +506,13 @@ export async function sendTestNotification(): Promise<void> {
     title: '💬 Priya Sharma',
     body: 'Hi! Can you share the WhatsApp CRM pricing and package details?',
     subtitle: 'menext WhatsApp CRM',
+    imageUrl: APP_NOTIFICATION_IMAGE_URL,
     channelId: NOTIFICATION_CHANNELS.INBOX_MESSAGES,
     data: {
       type: 'chat',
       conversationId: 'test-demo',
       senderName: 'Priya Sharma',
+      imageUrl: APP_NOTIFICATION_IMAGE_URL,
     },
   });
 
@@ -555,10 +566,17 @@ export function initializeNotificationListeners(
         return;
       }
 
+      const notifImage =
+        remoteMessage.notification?.android?.imageUrl ||
+        (remoteMessage.notification as any)?.imageUrl ||
+        (remoteMessage.data?.imageUrl as string) ||
+        APP_NOTIFICATION_IMAGE_URL;
+
       await displayLocalNotification({
         title,
         body,
         channelId,
+        imageUrl: notifImage,
         data: remoteMessage.data as NotificationPayloadData,
       });
     });

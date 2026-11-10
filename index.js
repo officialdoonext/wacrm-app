@@ -36,6 +36,11 @@ setBackgroundMessageHandler(messagingInstance, async (remoteMessage) => {
   const channelId =
     remoteMessage.data?.channelId || 'inbox_messages_v2';
 
+  const imageUrl =
+    remoteMessage.notification?.imageUrl ||
+    remoteMessage.data?.imageUrl ||
+    'https://ik.imagekit.io/doonext/menext/app-icon.png';
+
   try {
     await notifee.displayNotification({
       title,
@@ -46,6 +51,7 @@ setBackgroundMessageHandler(messagingInstance, async (remoteMessage) => {
         channelId,
         smallIcon: 'ic_notification',
         color: '#00A859',
+        largeIcon: imageUrl,
         pressAction: {
           id: 'default',
         },
@@ -61,6 +67,7 @@ setBackgroundMessageHandler(messagingInstance, async (remoteMessage) => {
       android: {
         channelId,
         color: '#00A859',
+        largeIcon: imageUrl,
         pressAction: {
           id: 'default',
         },
