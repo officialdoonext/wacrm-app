@@ -1,19 +1,39 @@
 import 'react-native-url-polyfill/auto';
 import { createClient } from '@supabase/supabase-js';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { API_CONFIG } from '../config/api';
 
-// Lightweight memory storage provider for React Native sessions
+// Persistent storage provider for React Native sessions with in-memory mirroring
 const memoryStore: Record<string, string> = {};
 
 const customStorage = {
-  getItem: (key: string): string | null => {
+  getItem: async (key: string): Promise<string | null> => {
+    try {
+      const val = await AsyncStorage.getItem(key);
+      if (val !== null) {
+        memoryStore[key] = val;
+        return val;
+      }
+    } catch {
+      // Fallback to memory store if native storage access fails
+    }
     return memoryStore[key] || null;
   },
-  setItem: (key: string, value: string): void => {
+  setItem: async (key: string, value: string): Promise<void> => {
     memoryStore[key] = value;
+    try {
+      await AsyncStorage.setItem(key, value);
+    } catch {
+      // ignore
+    }
   },
-  removeItem: (key: string): void => {
+  removeItem: async (key: string): Promise<void> => {
     delete memoryStore[key];
+    try {
+      await AsyncStorage.removeItem(key);
+    } catch {
+      // ignore
+    }
   },
 };
 
@@ -151,6 +171,21 @@ class AuthService {
     this.currentSessionToken = null;
     try {
       await supabase.auth.signOut();
+    } catch {
+      // ignore
+    }
+    try {
+      const keys = await AsyncStorage.getAllKeys();
+      const authKeys = keys.filter(
+        (k) => k.startsWith('sb-') || k.includes('supabase.auth.token')
+      );
+      if (authKeys.length > 0) {
+        if (typeof (AsyncStorage as any).removeMany === 'function') {
+          await (AsyncStorage as any).removeMany(authKeys);
+        } else {
+          await Promise.all(authKeys.map((k) => AsyncStorage.removeItem(k)));
+        }
+      }
     } catch {
       // ignore
     }

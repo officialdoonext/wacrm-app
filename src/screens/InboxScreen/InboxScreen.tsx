@@ -85,6 +85,8 @@ export interface ChatItem {
     message: string;
     unreadCount?: number;
     isPinned?: boolean;
+    lastMessageAt?: string;
+    aiAutoreplyDisabled?: boolean;
 }
 
 interface InboxScreenProps {
@@ -273,6 +275,8 @@ export const InboxScreen: React.FC<InboxScreenProps> = ({
                     time: 'Just now',
                     message: conv.last_message_text,
                     unreadCount: 0,
+                    lastMessageAt: conv.last_message_at,
+                    aiAutoreplyDisabled: conv.ai_autoreply_disabled,
                 });
             }
         } catch (err: any) {
@@ -443,6 +447,8 @@ export const InboxScreen: React.FC<InboxScreenProps> = ({
                                     time: formatTime(item.last_message_at),
                                     message: item.last_message_text || 'No message preview',
                                     unreadCount: item.unread_count,
+                                    lastMessageAt: item.last_message_at,
+                                    aiAutoreplyDisabled: item.ai_autoreply_disabled,
                                 };
 
                                 return (

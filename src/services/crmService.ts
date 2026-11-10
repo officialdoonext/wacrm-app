@@ -338,7 +338,7 @@ class CRMService {
             id: item.id,
             contact_id: item.contact_id,
             last_message_text: item.last_message_text || 'No messages yet',
-            last_message_at: item.last_message_at || new Date().toISOString(),
+            last_message_at: item.last_message_at || '',
             unread_count: item.unread_count || 0,
             status: item.status || 'open',
             assigned_agent_id: item.assigned_agent_id,

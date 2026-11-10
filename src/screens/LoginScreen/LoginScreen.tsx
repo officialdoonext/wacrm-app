@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
     View,
     Text,
@@ -12,6 +12,7 @@ import {
     ActivityIndicator,
     Alert,
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { styles } from './styles';
@@ -80,6 +81,28 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
     const passwordInputRef = useRef<React.ElementRef<typeof TextInput>>(null);
     const nameInputRef = useRef<React.ElementRef<typeof TextInput>>(null);
 
+    // Restore remembered credentials on initial mount
+    useEffect(() => {
+        let isMounted = true;
+        const loadStoredCredentials = async () => {
+            try {
+                const stored = await AsyncStorage.getItem('@wacrm_remembered_credentials');
+                if (stored && isMounted) {
+                    const parsed = JSON.parse(stored);
+                    if (parsed.email) setEmail(parsed.email);
+                    if (parsed.password) setPassword(parsed.password);
+                    setRememberMe(true);
+                }
+            } catch {
+                // Ignore storage read error
+            }
+        };
+        loadStoredCredentials();
+        return () => {
+            isMounted = false;
+        };
+    }, []);
+
     const handleAuthSubmit = async () => {
         let hasError = false;
         const cleanEmail = email.trim();
@@ -140,6 +163,29 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
                 );
             } else {
                 await authService.signIn(cleanEmail, password);
+
+                // Handle Remember Me credential persistence
+                if (rememberMe) {
+                    try {
+                        await AsyncStorage.setItem(
+                            '@wacrm_remembered_credentials',
+                            JSON.stringify({
+                                email: cleanEmail,
+                                password,
+                                rememberMe: true,
+                            })
+                        );
+                    } catch {
+                        // ignore storage error
+                    }
+                } else {
+                    try {
+                        await AsyncStorage.removeItem('@wacrm_remembered_credentials');
+                    } catch {
+                        // ignore storage error
+                    }
+                }
+
                 const access = await verifyCurrentUserAccess();
                 if (!access.isAllowed) {
                     if (onLoginRestricted) {

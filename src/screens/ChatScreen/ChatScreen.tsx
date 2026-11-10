@@ -343,17 +343,104 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
     const isInitialLoadRef = useRef(true);
     const conversationId = participant.conversationId || participant.id || '';
 
-    // Check 24-Hour Policy Window
-    const is24hWindowActive = React.useMemo(() => {
-        if (!participant.lastMessageAt) return true;
-        try {
-            const lastMsgDate = new Date(participant.lastMessageAt).getTime();
-            const diffHours = (Date.now() - lastMsgDate) / (1000 * 60 * 60);
-            return diffHours < 24;
-        } catch {
-            return true;
+    // 24-hour WhatsApp Business Policy Session Calculation (matching web message-thread.tsx)
+    const sessionInfo = React.useMemo(() => {
+        // 1. If messages are loaded, determine strictly from the last customer inbound message
+        if (messages.length > 0) {
+            const lastCustomerMsg = [...messages].reverse().find((m) => m.sender_type === 'customer');
+
+            if (!lastCustomerMsg) {
+                return {
+                    is24hActive: false,
+                    expired: true,
+                    remaining: 'No customer messages',
+                };
+            }
+
+            const lastCustomerTime = new Date(lastCustomerMsg.created_at).getTime();
+            if (isNaN(lastCustomerTime)) {
+                return {
+                    is24hActive: false,
+                    expired: true,
+                    remaining: '24h window expired',
+                };
+            }
+
+            const diffMs = Date.now() - lastCustomerTime;
+            const hoursSince = diffMs / (1000 * 60 * 60);
+
+            if (hoursSince >= 24 || diffMs < 0) {
+                return {
+                    is24hActive: false,
+                    expired: true,
+                    remaining: '24h window expired',
+                };
+            }
+
+            const hoursLeft = 24 - hoursSince;
+            const remaining =
+                hoursLeft >= 1
+                    ? `${Math.floor(hoursLeft)}h remaining`
+                    : `${Math.max(1, Math.floor(hoursLeft * 60))}m remaining`;
+
+            return {
+                is24hActive: true,
+                expired: false,
+                remaining,
+            };
         }
-    }, [participant.lastMessageAt]);
+
+        // 2. Fallback when messages have not loaded yet but participant metadata has a timestamp
+        if (participant.lastMessageAt) {
+            try {
+                const lastTime = new Date(participant.lastMessageAt).getTime();
+                if (isNaN(lastTime)) {
+                    return {
+                        is24hActive: false,
+                        expired: true,
+                        remaining: '24h window expired',
+                    };
+                }
+                const diffMs = Date.now() - lastTime;
+                const hoursSince = diffMs / (1000 * 60 * 60);
+
+                if (hoursSince >= 24 || diffMs < 0) {
+                    return {
+                        is24hActive: false,
+                        expired: true,
+                        remaining: '24h window expired',
+                    };
+                }
+
+                const hoursLeft = 24 - hoursSince;
+                const remaining =
+                    hoursLeft >= 1
+                        ? `${Math.floor(hoursLeft)}h remaining`
+                        : `${Math.max(1, Math.floor(hoursLeft * 60))}m remaining`;
+
+                return {
+                    is24hActive: true,
+                    expired: false,
+                    remaining,
+                };
+            } catch {
+                return {
+                    is24hActive: false,
+                    expired: true,
+                    remaining: '24h window expired',
+                };
+            }
+        }
+
+        // 3. No messages loaded and no lastMessageAt timestamp: window is not active
+        return {
+            is24hActive: false,
+            expired: true,
+            remaining: 'No customer messages',
+        };
+    }, [messages, participant.lastMessageAt]);
+
+    const is24hWindowActive = sessionInfo.is24hActive;
 
     // Keyboard listener to smoothly scroll message list to bottom
     useEffect(() => {
@@ -508,6 +595,18 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
         const textToSend = (customText !== undefined ? customText : inputText).trim();
         if (!textToSend && !customMediaUrl) return;
         if (!conversationId) return;
+
+        if (!is24hWindowActive && customType !== 'template') {
+            Alert.alert(
+                '24-Hour Policy Window Expired',
+                'Meta WhatsApp policy requires an approved template message to re-engage once 24 hours have passed.',
+                [
+                    { text: 'Cancel', style: 'cancel' },
+                    { text: 'Send Template', onPress: () => setTemplateModalVisible(true) },
+                ]
+            );
+            return;
+        }
 
         setInputText('');
         const replyToId = quotedMessage?.id;
@@ -1289,7 +1388,7 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
                     <View style={localStyles.policyBannerLeft}>
                         <ZapIcon size={12} color="#166534" />
                         <Text style={localStyles.policyActiveText}>
-                            24h WhatsApp Session Active • Direct replies enabled
+                            24h WhatsApp Session Active ({sessionInfo.remaining}) • Direct replies enabled
                         </Text>
                     </View>
                     <TouchableOpacity
@@ -1309,7 +1408,9 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
                             24-Hour WhatsApp Window Expired
                         </Text>
                         <Text style={localStyles.policyExpiredSub}>
-                            Only approved Meta templates can be dispatched to re-engage.
+                            {sessionInfo.remaining === 'No customer messages'
+                                ? 'No customer inbound message yet. Send a Meta approved template to initiate.'
+                                : `Session expired (${sessionInfo.remaining}). Send a Meta template to re-engage.`}
                         </Text>
                     </View>
                     <TouchableOpacity
