@@ -1717,7 +1717,11 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
                 maxHeight={Math.round(SCREEN_HEIGHT * 0.75)}>
                 <Text style={localStyles.modalSheetTitle}>Actions & Attachments</Text>
 
-                <ScrollView showsVerticalScrollIndicator={false} bounces={false} contentContainerStyle={{ paddingBottom: 16 }}>
+                <ScrollView
+                    style={{ maxHeight: Math.round(SCREEN_HEIGHT * 0.65) }}
+                    showsVerticalScrollIndicator={false}
+                    bounces={false}
+                    contentContainerStyle={{ paddingBottom: 16 }}>
                     <TouchableOpacity
                         style={localStyles.modalActionRow}
                         onPress={handlePickPhoto}>

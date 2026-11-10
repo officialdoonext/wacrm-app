@@ -558,7 +558,11 @@ export const InboxScreen: React.FC<InboxScreenProps> = ({
 
             {/* Smooth Modal: Start New Chat */}
             <SmoothModal visible={newChatModalVisible} onClose={() => setNewChatModalVisible(false)}>
-                <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 8 }}>
+                <ScrollView
+                    style={{ maxHeight: 420 }}
+                    keyboardShouldPersistTaps="handled"
+                    showsVerticalScrollIndicator={false}
+                    contentContainerStyle={{ paddingBottom: 8 }}>
                     <Text style={{ fontSize: 18, fontWeight: '700', color: '#1E293B', marginBottom: 4 }}>
                         Start New WhatsApp Chat
                     </Text>

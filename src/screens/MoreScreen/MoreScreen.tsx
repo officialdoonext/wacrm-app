@@ -615,7 +615,11 @@ export const MoreScreen: React.FC<MoreScreenProps> = ({
 
             {/* Smooth Modal: WhatsApp Cloud API Credentials */}
             <SmoothModal visible={whatsappConfigModalVisible} onClose={() => setWhatsappConfigModalVisible(false)}>
-                <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 8 }}>
+                <ScrollView
+                    style={{ maxHeight: 480 }}
+                    keyboardShouldPersistTaps="handled"
+                    showsVerticalScrollIndicator={false}
+                    contentContainerStyle={{ paddingBottom: 8 }}>
                     <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
                         <Text style={{ fontSize: 17, fontWeight: '700', color: '#0F172A' }}>WhatsApp Cloud API Setup</Text>
                         <TouchableOpacity onPress={() => setWhatsappConfigModalVisible(false)}>
@@ -672,7 +676,11 @@ export const MoreScreen: React.FC<MoreScreenProps> = ({
 
             {/* Smooth Modal: Team Members & Invite */}
             <SmoothModal visible={teamModalVisible} onClose={() => setTeamModalVisible(false)}>
-                <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 8 }}>
+                <ScrollView
+                    style={{ maxHeight: 420 }}
+                    keyboardShouldPersistTaps="handled"
+                    showsVerticalScrollIndicator={false}
+                    contentContainerStyle={{ paddingBottom: 8 }}>
                     <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
                         <Text style={{ fontSize: 17, fontWeight: '700', color: '#0F172A' }}>Invite New Team Member</Text>
                         <TouchableOpacity onPress={() => setTeamModalVisible(false)}>
