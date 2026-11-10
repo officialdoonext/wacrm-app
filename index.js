@@ -17,34 +17,56 @@ const messagingInstance = getMessaging();
 
 // Register FCM background message handler (runs when app is backgrounded or killed)
 setBackgroundMessageHandler(messagingInstance, async (remoteMessage) => {
-  console.log('[FCM] Background push notification received:', remoteMessage);
+  console.log('[FCM] Background message:', remoteMessage);
 
+  // Notification payloads are automatically displayed by Android
+  // when the app is in the background. Avoid displaying them again through Notifee.
+  if (remoteMessage.notification) {
+    console.log('[FCM] OS will display this notification');
+    return;
+  }
+
+  // Data-only messages need to be displayed manually.
   const title =
-    remoteMessage.notification?.title ||
-    remoteMessage.data?.title ||
-    'New WhatsApp Message';
-  const body =
-    remoteMessage.notification?.body ||
-    remoteMessage.data?.body ||
-    '';
-  const channelId =
-    remoteMessage.data?.channelId || 'inbox_messages';
+    remoteMessage.data?.title || 'New WhatsApp Message';
 
-  // Display heads-up notification via Notifee
-  await notifee.displayNotification({
-    title,
-    body,
-    subtitle: 'menext WhatsApp CRM',
-    data: remoteMessage.data || {},
-    android: {
-      channelId,
-      smallIcon: 'ic_launcher',
-      color: '#00A859',
-      pressAction: {
-        id: 'default',
+  const body =
+    remoteMessage.data?.body || '';
+
+  const channelId =
+    remoteMessage.data?.channelId || 'inbox_messages_v2';
+
+  try {
+    await notifee.displayNotification({
+      title,
+      body,
+      subtitle: 'menext WhatsApp CRM',
+      data: remoteMessage.data || {},
+      android: {
+        channelId,
+        smallIcon: 'ic_notification',
+        color: '#00A859',
+        pressAction: {
+          id: 'default',
+        },
       },
-    },
-  });
+    });
+  } catch (err) {
+    // Fallback if ic_notification drawable not found in installed binary
+    await notifee.displayNotification({
+      title,
+      body,
+      subtitle: 'menext WhatsApp CRM',
+      data: remoteMessage.data || {},
+      android: {
+        channelId,
+        color: '#00A859',
+        pressAction: {
+          id: 'default',
+        },
+      },
+    });
+  }
 });
 
 // Register Notifee background event handler for background notification interactions

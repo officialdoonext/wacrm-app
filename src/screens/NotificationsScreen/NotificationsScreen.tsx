@@ -7,6 +7,7 @@ import {
     StatusBar,
     StyleSheet,
 } from 'react-native';
+import { sendTestNotification } from '../../services/notificationService';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Colors } from '../../theme/colors';
 import { AppHeader } from '../../components/AppHeader';
@@ -106,6 +107,34 @@ export const NotificationsScreen: React.FC<NotificationsScreenProps> = ({
                     data={notifications}
                     keyExtractor={(item) => item.id}
                     contentContainerStyle={{ padding: 16 }}
+                    ListHeaderComponent={
+                        <TouchableOpacity
+                            activeOpacity={0.8}
+                            onPress={() => sendTestNotification()}
+                            style={{
+                                backgroundColor: '#ECFDF5',
+                                borderWidth: 1,
+                                borderColor: '#A7F3D0',
+                                borderRadius: 12,
+                                padding: 14,
+                                marginBottom: 16,
+                                flexDirection: 'row',
+                                alignItems: 'center',
+                                justifyContent: 'space-between',
+                            }}>
+                            <View style={{ flex: 1, marginRight: 8 }}>
+                                <Text style={{ fontSize: 14, fontWeight: '700', color: '#065F46' }}>
+                                    🔔 Send Test Notification
+                                </Text>
+                                <Text style={{ fontSize: 12, color: '#047857', marginTop: 2 }}>
+                                    Tap to verify live notification banner, sound & vibration on your phone
+                                </Text>
+                            </View>
+                            <View style={{ backgroundColor: '#059669', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8 }}>
+                                <Text style={{ color: '#FFFFFF', fontWeight: '700', fontSize: 12 }}>Test Now</Text>
+                            </View>
+                        </TouchableOpacity>
+                    }
                     renderItem={({ item }) => (
                         <View style={[styles.notifCard, !item.isRead && styles.notifUnread]}>
                             <View style={styles.iconCircle}>

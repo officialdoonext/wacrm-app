@@ -1,3 +1,4 @@
+import { Platform, PermissionsAndroid, Alert } from 'react-native';
 import {
   getMessaging,
   getToken,
@@ -26,13 +27,40 @@ export interface NotificationPayloadData {
   [key: string]: string | undefined;
 }
 
+// Versioned channel IDs ensure Android OS updates channel settings (sound/vibration/high importance)
 export const NOTIFICATION_CHANNELS = {
-  INBOX_MESSAGES: 'inbox_messages',
-  AUTOMATIONS: 'automations',
-  GENERAL: 'general',
+  INBOX_MESSAGES: 'inbox_messages_v2',
+  AUTOMATIONS: 'automations_v2',
+  GENERAL: 'general_v2',
 } as const;
 
 let channelsCreated = false;
+let globalSubscriptionChannel: any = null;
+let activeChatConversationId: string | null = null;
+const recentNotificationDedupe = new Map<string, number>();
+
+function isDuplicateNotification(key: string, windowMs = 25000): boolean {
+  const now = Date.now();
+  const lastTime = recentNotificationDedupe.get(key);
+  if (lastTime && now - lastTime < windowMs) {
+    return true;
+  }
+  recentNotificationDedupe.set(key, now);
+
+  // Clean old entries
+  if (recentNotificationDedupe.size > 200) {
+    for (const [k, time] of recentNotificationDedupe.entries()) {
+      if (now - time > windowMs) {
+        recentNotificationDedupe.delete(k);
+      }
+    }
+  }
+  return false;
+}
+
+export function setActiveChatConversationId(id: string | null): void {
+  activeChatConversationId = id;
+}
 
 function getSafeMessaging() {
   try {
@@ -84,6 +112,7 @@ export async function setupNotificationChannels(): Promise<void> {
     });
 
     channelsCreated = true;
+    console.log('[NotificationService] High-importance notification channels registered.');
   } catch (err) {
     console.warn('[NotificationService] Channel setup exception:', err);
   }
@@ -97,7 +126,19 @@ export async function requestNotificationPermission(): Promise<{
   status: AuthorizationStatus;
 }> {
   try {
-    // 1. Notifee permission check & request (handles runtime POST_NOTIFICATIONS on Android 13+)
+    // Explicit Android 13+ runtime POST_NOTIFICATIONS dialog prompt
+    if (Platform.OS === 'android' && Platform.Version >= 33) {
+      try {
+        const androidPermission = await PermissionsAndroid.request(
+          PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS
+        );
+        console.log('[NotificationService] Android 13+ POST_NOTIFICATIONS:', androidPermission);
+      } catch (pErr) {
+        console.warn('[NotificationService] Android permission request error:', pErr);
+      }
+    }
+
+    // Notifee permission check & request
     const notifeeSettings = await notifee.requestPermission();
     const isGranted =
       notifeeSettings.authorizationStatus >= AuthorizationStatus.AUTHORIZED;
@@ -141,8 +182,10 @@ export async function getFCMToken(): Promise<string | null> {
 /**
  * Sync device FCM token to Supabase profiles table for remote targeting
  */
-export async function syncFCMTokenToBackend(token: string): Promise<void> {
-  if (!token) return;
+export async function syncFCMTokenToBackend(token?: string): Promise<void> {
+  const effectiveToken =
+    token || (await AsyncStorage.getItem('@menext_fcm_token')) || '';
+  if (!effectiveToken) return;
 
   try {
     const user = await authService.getCurrentUser();
@@ -152,7 +195,7 @@ export async function syncFCMTokenToBackend(token: string): Promise<void> {
     const { error } = await supabase
       .from('profiles')
       .update({
-        fcm_token: token,
+        fcm_token: effectiveToken,
       })
       .eq('user_id', user.id);
 
@@ -160,19 +203,20 @@ export async function syncFCMTokenToBackend(token: string): Promise<void> {
       // Column fcm_token might not exist yet in profiles schema; fallback to user_metadata
       try {
         await supabase.auth.updateUser({
-          data: { fcm_token: token },
+          data: { fcm_token: effectiveToken },
         });
       } catch {
         // ignore fallback error
       }
     }
+    console.log('[NotificationService] Synced FCM token to backend for user:', user.email);
   } catch (err) {
     console.warn('[NotificationService] Error syncing FCM token:', err);
   }
 }
 
 /**
- * Display a heads-up local notification banner on screen
+ * Display a heads-up notification banner on screen (with resilient icon fallback)
  */
 export async function displayLocalNotification(params: {
   title: string;
@@ -192,31 +236,64 @@ export async function displayLocalNotification(params: {
   try {
     await setupNotificationChannels();
 
-    return await notifee.displayNotification({
-      title,
-      body,
-      subtitle: subtitle || 'menext WhatsApp CRM',
-      data: (data as any) || {},
-      android: {
-        channelId,
-        smallIcon: 'ic_launcher',
-        color: '#00A859',
-        pressAction: {
-          id: 'default',
+    // 1. Try displaying with dedicated monochrome icon
+    try {
+      return await notifee.displayNotification({
+        title,
+        body,
+        subtitle: subtitle || 'menext WhatsApp CRM',
+        data: (data as any) || {},
+        android: {
+          channelId,
+          smallIcon: 'ic_notification',
+          color: '#00A859',
+          importance: AndroidImportance.HIGH,
+          pressAction: {
+            id: 'default',
+          },
         },
-      },
-      ios: {
-        sound: 'default',
-        foregroundPresentationOptions: {
-          badge: true,
-          sound: true,
-          banner: true,
-          list: true,
+        ios: {
+          sound: 'default',
+          foregroundPresentationOptions: {
+            badge: true,
+            sound: true,
+            banner: true,
+            list: true,
+          },
         },
-      },
-    });
-  } catch (err) {
-    console.warn('[NotificationService] Failed to display notification:', err);
+      });
+    } catch (iconErr: any) {
+      console.warn(
+        '[NotificationService] Failed with ic_notification, retrying with default launcher icon:',
+        iconErr?.message
+      );
+      // 2. Fallback without smallIcon so Android uses default app icon
+      return await notifee.displayNotification({
+        title,
+        body,
+        subtitle: subtitle || 'menext WhatsApp CRM',
+        data: (data as any) || {},
+        android: {
+          channelId,
+          color: '#00A859',
+          importance: AndroidImportance.HIGH,
+          pressAction: {
+            id: 'default',
+          },
+        },
+        ios: {
+          sound: 'default',
+          foregroundPresentationOptions: {
+            badge: true,
+            sound: true,
+            banner: true,
+            list: true,
+          },
+        },
+      });
+    }
+  } catch (err: any) {
+    console.warn('[NotificationService] Failed to display notification:', err?.message || err);
     return undefined;
   }
 }
@@ -229,8 +306,15 @@ export async function notifyNewWhatsAppMessage(params: {
   contactName: string;
   messageText: string;
   contactId?: string;
+  messageId?: string;
 }): Promise<void> {
-  const { conversationId, contactName, messageText, contactId } = params;
+  const { conversationId, contactName, messageText, contactId, messageId } = params;
+
+  const dedupeKey = messageId || `${conversationId}_${messageText}`;
+  if (isDuplicateNotification(dedupeKey)) {
+    console.log('[NotificationService] Suppressed duplicate notification for key:', dedupeKey);
+    return;
+  }
 
   await displayLocalNotification({
     title: `💬 ${contactName || 'New Message'}`,
@@ -272,6 +356,169 @@ export async function notifyAutomationTriggered(params: {
 }
 
 /**
+ * Global Realtime Inbound Message Listener:
+ * Runs persistently across the entire app so notifications trigger on ANY screen.
+ */
+export function startGlobalInboundNotificationListener(): () => void {
+  if (globalSubscriptionChannel) {
+    try {
+      supabase.removeChannel(globalSubscriptionChannel);
+    } catch {}
+    globalSubscriptionChannel = null;
+  }
+
+  const channelName = `global_inbound_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+  console.log('[NotificationService] Starting global realtime message listener on channel:', channelName);
+
+  globalSubscriptionChannel = supabase
+    .channel(channelName)
+    .on(
+      'postgres_changes',
+      { event: 'INSERT', schema: 'public', table: 'messages' },
+      async (payload: any) => {
+        const newMsg = payload?.new;
+        if (!newMsg) return;
+
+        console.log('[NotificationService] Realtime message event detected:', newMsg.id, newMsg.sender_type);
+
+        // Notify for any customer/inbound message
+        const isInbound =
+          newMsg.sender_type === 'customer' ||
+          newMsg.sender_type === 'inbound' ||
+          (newMsg.sender_type && newMsg.sender_type !== 'agent');
+
+        if (isInbound) {
+          // If the user is currently reading this specific conversation in ChatScreen, don't show notification
+          if (activeChatConversationId && activeChatConversationId === newMsg.conversation_id) {
+            return;
+          }
+
+          // Fetch contact details
+          let contactName = 'Customer';
+          try {
+            const { data: conv } = await supabase
+              .from('conversations')
+              .select('contact:contacts(name, phone)')
+              .eq('id', newMsg.conversation_id)
+              .maybeSingle();
+
+            if (conv?.contact) {
+              const c = conv.contact as any;
+              contactName = c.name || c.phone || 'Customer';
+            }
+          } catch {}
+
+          const preview =
+            newMsg.content_text ||
+            (newMsg.content_type && newMsg.content_type !== 'text'
+              ? `Sent a ${newMsg.content_type}`
+              : 'Sent a message');
+
+          await notifyNewWhatsAppMessage({
+            conversationId: newMsg.conversation_id,
+            contactName,
+            messageText: preview,
+            contactId: newMsg.contact_id,
+            messageId: newMsg.id,
+          });
+        }
+      }
+    )
+    .on(
+      'postgres_changes',
+      { event: 'INSERT', schema: 'public', table: 'automation_logs' },
+      async (payload: any) => {
+        const log = payload?.new;
+        if (log) {
+          await notifyAutomationTriggered({
+            title: 'Automation Executed',
+            workflowName: log.automation_name || 'Workflow Rule',
+            details: log.contact_name ? `Triggered for ${log.contact_name}` : undefined,
+            automationId: log.automation_id,
+          });
+        }
+      }
+    )
+    .subscribe();
+
+  return () => {
+    if (globalSubscriptionChannel) {
+      try {
+        supabase.removeChannel(globalSubscriptionChannel);
+      } catch {}
+      globalSubscriptionChannel = null;
+    }
+  };
+}
+
+/**
+ * Automatically sync Realtime JWT authentication & tokens whenever user signs in or session is restored
+ */
+export function setupNotificationAuthSync(): () => void {
+  // 1. Initial check for existing active session
+  supabase.auth.getSession().then(({ data: { session } }) => {
+    if (session?.user) {
+      console.log('[NotificationService] Session restored for user:', session.user.email);
+      try {
+        supabase.realtime.setAuth(session.access_token);
+      } catch {}
+      startGlobalInboundNotificationListener();
+      getFCMToken();
+    }
+  });
+
+  // 2. Continuous listener for auth state changes
+  const { data: authListener } = supabase.auth.onAuthStateChange(
+    async (event, session) => {
+      console.log('[NotificationService] Auth state changed:', event, session?.user?.email);
+      if (session?.user) {
+        try {
+          supabase.realtime.setAuth(session.access_token);
+        } catch {}
+        startGlobalInboundNotificationListener();
+        getFCMToken();
+      }
+    }
+  );
+
+  return () => {
+    authListener?.subscription?.unsubscribe();
+  };
+}
+
+/**
+ * Instantly triggers a test notification to verify device sound, banner, and permissions
+ */
+export async function sendTestNotification(): Promise<void> {
+  const perm = await requestNotificationPermission();
+  console.log('[NotificationService] Test notification requested, permission:', perm);
+
+  const res = await displayLocalNotification({
+    title: '💬 Priya Sharma',
+    body: 'Hi! Can you share the WhatsApp CRM pricing and package details?',
+    subtitle: 'menext WhatsApp CRM',
+    channelId: NOTIFICATION_CHANNELS.INBOX_MESSAGES,
+    data: {
+      type: 'chat',
+      conversationId: 'test-demo',
+      senderName: 'Priya Sharma',
+    },
+  });
+
+  if (res) {
+    Alert.alert(
+      'Notification Dispatched',
+      'Test notification was sent successfully! Check your notification shade / status bar.'
+    );
+  } else {
+    Alert.alert(
+      'Permission Required',
+      'Could not display notification. Please ensure Notifications are enabled in your device Settings > Apps > menext.'
+    );
+  }
+}
+
+/**
  * Listener for foreground notifications (both FCM push and Notifee clicks)
  */
 export function initializeNotificationListeners(
@@ -286,7 +533,7 @@ export function initializeNotificationListeners(
   if (messagingInstance) {
     // 1. Listen for incoming FCM messages while app is open
     unsubscribeFCM = onMessage(messagingInstance, async (remoteMessage: RemoteMessage) => {
-      console.log('[NotificationService] Foreground FCM message:', remoteMessage);
+      console.log('[NotificationService] Foreground FCM message received:', remoteMessage);
 
       const title =
         remoteMessage.notification?.title ||
@@ -299,6 +546,14 @@ export function initializeNotificationListeners(
       const channelId =
         (remoteMessage.data?.channelId as string) ||
         NOTIFICATION_CHANNELS.INBOX_MESSAGES;
+
+      const dedupeKey =
+        remoteMessage.messageId ||
+        `${remoteMessage.data?.conversationId || ''}_${body}`;
+      if (isDuplicateNotification(dedupeKey)) {
+        console.log('[NotificationService] Suppressed duplicate foreground FCM message:', dedupeKey);
+        return;
+      }
 
       await displayLocalNotification({
         title,

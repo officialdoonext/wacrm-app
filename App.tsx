@@ -10,6 +10,9 @@ import {
   requestNotificationPermission,
   getFCMToken,
   initializeNotificationListeners,
+  startGlobalInboundNotificationListener,
+  setupNotificationAuthSync,
+  setActiveChatConversationId,
 } from './src/services/notificationService';
 
 import { SplashScreen } from './src/screens/SplashScreen/SplashScreen';
@@ -76,6 +79,8 @@ function SplashScreenWrapper({ navigation }: NativeStackScreenProps<RootStackPar
         const session = await authService.getSession();
         if (isMounted) {
           if (session?.user) {
+            // Re-sync FCM token for the restored authenticated user
+            getFCMToken();
             // Strict fail-closed subscription & status access check
             const access = await verifyCurrentUserAccess();
             if (isMounted) {
@@ -117,7 +122,10 @@ function WelcomeScreenWrapper({ navigation }: NativeStackScreenProps<RootStackPa
     <WelcomeScreen
       onNavigateLogin={() => navigation.navigate('Login')}
       onNavigateOnboarding={(params) => navigation.replace('Onboarding', params)}
-      onAccessGranted={() => navigation.replace('Inbox')}
+      onAccessGranted={() => {
+        getFCMToken();
+        navigation.replace('Inbox');
+      }}
     />
   );
 }
@@ -127,9 +135,11 @@ function LoginScreenWrapper({ navigation }: NativeStackScreenProps<RootStackPara
     <LoginScreen
       onNavigateRegister={() => navigation.navigate('SignUp')}
       onLoginSuccess={(email) => {
+        getFCMToken();
         navigation.replace('Inbox');
       }}
       onLoginRestricted={(email, reason, expiryDate, status) => {
+        getFCMToken();
         navigation.replace('Onboarding', { email, reason, expiryDate, status });
       }}
     />
@@ -191,6 +201,16 @@ function InboxScreenWrapper({ navigation }: NativeStackScreenProps<RootStackPara
 }
 
 function ChatScreenWrapper({ navigation, route }: NativeStackScreenProps<RootStackParamList, 'Chat'>) {
+  useEffect(() => {
+    const convId = route.params?.participant?.conversationId || route.params?.participant?.id || null;
+    if (convId) {
+      setActiveChatConversationId(convId);
+    }
+    return () => {
+      setActiveChatConversationId(null);
+    };
+  }, [route.params?.participant]);
+
   return (
     <ChatScreen
       participant={route.params?.participant}
@@ -367,8 +387,16 @@ export default function App(): React.JSX.Element {
       }
     });
 
+    // 4. Start persistent global realtime listener for incoming WhatsApp messages
+    const unsubscribeGlobalRealtime = startGlobalInboundNotificationListener();
+
+    // 5. Sync authenticated JWT with Supabase Realtime & register FCM token on login/restore
+    const unsubscribeAuthSync = setupNotificationAuthSync();
+
     return () => {
       unsubscribeNotifications();
+      unsubscribeGlobalRealtime();
+      unsubscribeAuthSync();
     };
   }, []);
 
