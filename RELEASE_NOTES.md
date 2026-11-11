@@ -1,6 +1,6 @@
 # MeNext Mobile App — Release Notes
 
-## Version 1.0 (Build 1)
+## Version 1.0.1 (Build 2)
 **Date:** November 11, 2026  
 **Package:** `com.menext`  
 **Build Type:** Signed Release AAB (`app-release.aab`)  
@@ -25,7 +25,7 @@ In this release:
 #### Short / Quick (Under 500 characters):
 ```xml
 <en-US>
-Welcome to MeNext v1.0!
+Welcome to MeNext v1.0.1!
 • Real-time WhatsApp inbox and messaging
 • Instant push notifications for incoming customer chats
 • Sales pipeline and lead management
