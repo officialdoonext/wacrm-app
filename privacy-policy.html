@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Privacy Policy - MeNext</title>
+  <style>
+    :root {
+      --primary: #2563eb;
+      --text: #1f2937;
+      --text-muted: #4b5563;
+      --bg: #f9fafb;
+      --card-bg: #ffffff;
+      --border: #e5e7eb;
+    }
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      line-height: 1.65;
+      color: var(--text);
+      background-color: var(--bg);
+      padding: 40px 20px;
+    }
+    .container {
+      max-width: 840px;
+      margin: 0 auto;
+      background: var(--card-bg);
+      padding: 48px;
+      border-radius: 12px;
+      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -2px rgba(0, 0, 0, 0.05);
+      border: 1px solid var(--border);
+    }
+    h1 {
+      font-size: 2rem;
+      color: #111827;
+      margin-bottom: 8px;
+    }
+    .meta {
+      font-size: 0.9rem;
+      color: var(--text-muted);
+      margin-bottom: 32px;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 16px;
+    }
+    h2 {
+      font-size: 1.35rem;
+      color: #111827;
+      margin-top: 32px;
+      margin-bottom: 12px;
+    }
+    h3 {
+      font-size: 1.1rem;
+      color: #374151;
+      margin-top: 20px;
+      margin-bottom: 8px;
+    }
+    p {
+      margin-bottom: 16px;
+      color: var(--text);
+    }
+    ul {
+      margin-left: 24px;
+      margin-bottom: 16px;
+    }
+    li {
+      margin-bottom: 8px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 20px 0;
+      font-size: 0.95rem;
+    }
+    th, td {
+      border: 1px solid var(--border);
+      padding: 12px 16px;
+      text-align: left;
+    }
+    th {
+      background-color: #f3f4f6;
+      font-weight: 600;
+      color: #374151;
+    }
+    a {
+      color: var(--primary);
+      text-decoration: none;
+    }
+    a:hover {
+      text-decoration: underline;
+    }
+    .badge {
+      display: inline-block;
+      background: #eff6ff;
+      color: #1d4ed8;
+      font-size: 0.85rem;
+      font-weight: 500;
+      padding: 4px 10px;
+      border-radius: 9999px;
+      margin-bottom: 16px;
+    }
+    @media (max-width: 640px) {
+      .container {
+        padding: 24px;
+      }
+      h1 {
+        font-size: 1.6rem;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <span class="badge">MeNext Application</span>
+    <h1>Privacy Policy</h1>
+    <div class="meta">
+      <strong>Effective Date:</strong> November 11, 2026 &nbsp;|&nbsp; <strong>Last Updated:</strong> November 11, 2026
+    </div>
+
+    <p>Welcome to <strong>MeNext</strong> ("we," "our," or "us"). MeNext is a WhatsApp CRM, customer communication, and sales automation platform operated by MeNext / Doonext. This Privacy Policy explains how we collect, use, process, and safeguard your personal information when you use the MeNext mobile application ("Application") and associated services.</p>
+
+    <p>By downloading, accessing, or using MeNext, you consent to the practices described in this Privacy Policy. If you do not agree with this policy, please do not use the Application.</p>
+
+    <h2>1. Information We Collect</h2>
+
+    <h3>A. Information You Provide Directly</h3>
+    <ul>
+      <li><strong>Account Details:</strong> When you register, we collect your name, email address, phone number, and organization name.</li>
+      <li><strong>CRM & Contact Data:</strong> Customer contact names, phone numbers, deal notes, and tags created or imported by you into the CRM.</li>
+      <li><strong>Messages & Communications:</strong> Messages, broadcast campaign content, and customer chat histories transmitted through connected WhatsApp Business accounts.</li>
+      <li><strong>User-Generated Media:</strong> Photos, documents, videos, and voice recordings you upload or capture to share with clients in chat.</li>
+    </ul>
+
+    <h3>B. Information Collected Automatically</h3>
+    <ul>
+      <li><strong>Push Notification Tokens:</strong> Firebase Cloud Messaging (FCM) device registration tokens used solely to deliver real-time notifications for incoming customer chats.</li>
+      <li><strong>Device Information:</strong> Device model, OS version, application version, and standard network diagnostics to ensure platform reliability.</li>
+      <li><strong>Error Logs & Performance Metrics:</strong> Diagnostic logs used strictly for debugging app crashes and maintaining security.</li>
+    </ul>
+
+    <h2>2. Device Permissions We Request</h2>
+    <p>The MeNext application requests specific Android permissions strictly to provide its core messaging and CRM functionality:</p>
+    <table>
+      <thead>
+        <tr>
+          <th>Permission</th>
+          <th>Purpose</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>INTERNET</strong></td>
+          <td>Connects to backend APIs, synchronizes real-time WhatsApp messages, and manages secure sessions.</td>
+        </tr>
+        <tr>
+          <td><strong>POST_NOTIFICATIONS</strong></td>
+          <td>Delivers push notifications when new customer messages or workflow updates arrive (Android 13+).</td>
+        </tr>
+        <tr>
+          <td><strong>CAMERA</strong></td>
+          <td>Allows taking photos directly inside the app to attach to customer conversations or update profile pictures.</td>
+        </tr>
+        <tr>
+          <td><strong>RECORD_AUDIO</strong></td>
+          <td>Enables recording voice notes to send to customers in chats.</td>
+        </tr>
+        <tr>
+          <td><strong>READ_MEDIA_IMAGES / VIDEO / AUDIO</strong></td>
+          <td>Allows selecting existing photos, videos, or documents from your gallery to attach to messages.</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h2>3. How We Use Your Information</h2>
+    <p>We use the data collected strictly for legitimate business and operational purposes:</p>
+    <ul>
+      <li>To deliver, maintain, and support the WhatsApp CRM, shared inbox, and sales pipeline features.</li>
+      <li>To send immediate push notifications for incoming customer conversations via Firebase.</li>
+      <li>To provide technical support and troubleshoot application issues.</li>
+      <li>To verify accounts and maintain secure user authentication.</li>
+      <li>To comply with legal obligations and WhatsApp Business Terms of Service.</li>
+    </ul>
+
+    <h2>4. Third-Party Services & Data Sharing</h2>
+    <p>We do not sell, rent, or monetize your personal or customer data. We share information only with trusted cloud service providers necessary for the app's functionality:</p>
+    <ul>
+      <li><strong>Supabase:</strong> Cloud database and authentication service for user identity and CRM records.</li>
+      <li><strong>Google Firebase Cloud Messaging (FCM):</strong> Push notification service for instant message alerts.</li>
+      <li><strong>Meta Platforms (WhatsApp Business API):</strong> Official messaging infrastructure used to route WhatsApp conversations.</li>
+    </ul>
+
+    <h2>5. Data Security</h2>
+    <p>We maintain strict administrative, technical, and physical safeguards to protect your personal data:</p>
+    <ul>
+      <li>All data transmissions between the application and our servers are encrypted using <strong>TLS/HTTPS (SSL)</strong>.</li>
+      <li>Access to production databases is restricted to authorized personnel with strict access controls.</li>
+      <li>Sensitive credentials and tokens are encrypted at rest.</li>
+    </ul>
+
+    <h2>6. Data Retention and Account Deletion</h2>
+    <p>We retain your information for as long as your account remains active or as needed to provide our services.</p>
+    <p><strong>Account & Data Deletion Requests:</strong> In compliance with Google Play Developer policies, you have the right to request deletion of your account and all associated personal data at any time. You can request deletion by emailing <strong>privacy@doonext.com</strong> or <strong>support@doonext.com</strong>. Upon receiving your verified request, we will permanently delete or anonymize your data within 30 days.</p>
+
+    <h2>7. Children's Privacy</h2>
+    <p>MeNext is an enterprise B2B productivity application and is not intended for use by anyone under the age of 13. We do not knowingly collect personal data from children.</p>
+
+    <h2>8. Changes to This Privacy Policy</h2>
+    <p>We may update this Privacy Policy from time to time. Any modifications will be posted here with an updated "Last Updated" date. Continued use of the Application signifies acceptance of any revisions.</p>
+
+    <h2>9. Contact Us</h2>
+    <p>If you have any questions or concerns regarding this Privacy Policy or your personal information, please contact us:</p>
+    <ul>
+      <li><strong>App Name:</strong> MeNext</li>
+      <li><strong>Entity:</strong> Doonext</li>
+      <li><strong>Email:</strong> <a href="mailto:privacy@doonext.com">privacy@doonext.com</a> / <a href="mailto:support@doonext.com">support@doonext.com</a></li>
+      <li><strong>Website:</strong> <a href="https://doonext.com" target="_blank" rel="noopener">https://doonext.com</a></li>
+    </ul>
+  </div>
+</body>
+</html>
+
